@@ -63,7 +63,7 @@ Mise à jour à chaque session. Checklist globale du Script 2.
 | Clés Gemini + OpenRouter | ✅ Dans `.env.learning` (local uniquement) |
 | Env de test | ✅ Propre (pages 2/3 restaurées), serveur :8888 WSL, WP 2.3.0 actif |
 
-**Pour reprendre** : lire `ONBOARDING.md` (§1-8), puis `docs-learning/LEARNING_STATE.md`, puis `EXPERIMENTS_LOG.md` Exp 008. Prochaine action proposée : prioriser avec l'utilisateur les évolutions inspirées de block-mcp (la piste la plus structurante : compte agent WP à moindre privilège avec Application Passwords au lieu du token statique).
+**Pour reprendre** : les fichiers `AGENTS.md` (lab + repo) sont auto-chargés par opencode au démarrage → le contexte arrive tout seul. Lire ensuite `ONBOARDING.md` (§1-8), puis `docs-learning/LEARNING_STATE.md`, puis `EXPERIMENTS_LOG.md` Exp 008. Prochaine action proposée : prioriser avec l'utilisateur les évolutions inspirées de block-mcp (la piste la plus structurante : compte agent WP à moindre privilège avec Application Passwords au lieu du token statique).
 
 **Fils ouverts à retenir** :
 1. Tests HTTP externes depuis Windows bloqués (pare-feu Hyper-V, pas admin) — non bloquant, équivalent interne OK.
