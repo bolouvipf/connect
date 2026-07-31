@@ -1,0 +1,114 @@
+export interface HWToolParam {
+  type: string
+  required: boolean
+  description: string
+}
+
+export interface HWTool {
+  name: string
+  description: string
+  profiles: string[]
+  params: Record<string, HWToolParam>
+}
+
+export const HWT_TOOLS: HWTool[] = [
+  {
+    name: 'get_wp_pages',
+    description: 'Récupérer la liste des pages WordPress du site connecté',
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {},
+  },
+  {
+    name: 'get_wp_menus',
+    description: 'Récupérer la liste des menus WordPress',
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {},
+  },
+  {
+    name: 'get_page_blocks',
+    description: "Lire la structure de blocs d'une page WordPress (index, blockName, content, ref, content_md5)",
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {
+      page_id: { type: 'string', required: true, description: 'ID de la page WordPress' },
+    },
+  },
+  {
+    name: 'inject_page',
+    description: "Injecter du contenu HTML dans une page WordPress (avec marqueurs HWC, CAS expected_hash si fourni)",
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {
+      page_id: { type: 'string', required: true, description: 'ID de la page WordPress' },
+      html: { type: 'string', required: true, description: 'Contenu HTML Gutenberg à injecter' },
+      module: { type: 'string', required: false, description: 'Module HOUETOR (annonces, produits, formations, custom)' },
+      block_id: { type: 'string', required: false, description: 'Identifiant de bloc (généré si absent)' },
+      position: { type: 'string', required: false, description: 'append | prepend | replace (défaut: append)' },
+      expected_hash: { type: 'string', required: false, description: 'md5 du contenu attendu (CAS, issu de get_page_blocks / /pages)' },
+    },
+  },
+  {
+    name: 'uninject_page',
+    description: 'Retirer un bloc HWC d\'une page WordPress (marqueurs HWC uniquement)',
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {
+      page_id: { type: 'string', required: true, description: 'ID de la page WordPress' },
+      module: { type: 'string', required: true, description: 'Module HOUETOR du bloc' },
+      block_id: { type: 'string', required: true, description: 'Identifiant du bloc à retirer' },
+      expected_hash: { type: 'string', required: false, description: 'md5 du contenu attendu (CAS)' },
+    },
+  },
+  {
+    name: 'create_block',
+    description: "Créer un bloc Gutenberg dans une page (enrobé d'une ref HWC si module fourni ; position by anchor_ref/anchor_index)",
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {
+      page_id: { type: 'string', required: true, description: 'ID de la page WordPress' },
+      block_name: { type: 'string', required: true, description: 'Nom du bloc (liste blanche core/*)' },
+      content: { type: 'string', required: false, description: 'Contenu du bloc' },
+      module: { type: 'string', required: false, description: 'Module HOUETOR — enrobe le bloc d\'une ref stable (ex: annonces)' },
+      position: { type: 'string', required: false, description: 'start | end | before | after (défaut: end)' },
+      anchor_ref: { type: 'string', required: false, description: 'Ref HWC d\'un bloc existant (obligatoire pour before/after)' },
+      anchor_index: { type: 'string', required: false, description: 'Index de bloc alternatif à anchor_ref' },
+      expected_hash: { type: 'string', required: false, description: 'md5 du contenu attendu (CAS)' },
+    },
+  },
+  {
+    name: 'update_block_content',
+    description: "Modifier le contenu d'un bloc existant (par ref HWC prioritaire ou par index) — CAS attendu",
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {
+      page_id: { type: 'string', required: true, description: 'ID de la page WordPress' },
+      ref: { type: 'string', required: false, description: 'Ref HWC du bloc (prioritaire sur block_index)' },
+      block_index: { type: 'string', required: false, description: 'Index du bloc (si pas de ref)' },
+      new_content: { type: 'string', required: true, description: 'Nouveau contenu du bloc' },
+      expected_hash: { type: 'string', required: false, description: 'md5 du contenu attendu (CAS)' },
+    },
+  },
+  {
+    name: 'delete_block',
+    description: "Supprimer un bloc (par ref HWC prioritaire ou par index)",
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {
+      page_id: { type: 'string', required: true, description: 'ID de la page WordPress' },
+      ref: { type: 'string', required: false, description: 'Ref HWC du bloc (prioritaire sur block_index)' },
+      block_index: { type: 'string', required: false, description: 'Index du bloc (si pas de ref)' },
+      expected_hash: { type: 'string', required: false, description: 'md5 du contenu attendu (CAS)' },
+    },
+  },
+  {
+    name: 'export_to_wordpress',
+    description: "Exporter du contenu vers WordPress (upload d'images puis injection)",
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {
+      page_id: { type: 'string', required: true, description: 'ID de la page WordPress cible' },
+      html: { type: 'string', required: true, description: 'Contenu HTML Gutenberg complet' },
+      images: { type: 'array', required: false, description: "URLs d'images à uploader vers la médiathèque WP" },
+      module: { type: 'string', required: true, description: 'Module HOUETOR (annonces, produits, formations, custom)' },
+    },
+  },
+  {
+    name: 'list_connected_sites',
+    description: 'Lister les sites WordPress connectés (lab : le site configuré via env WORDPRESS_URL)',
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {},
+  },
+]
