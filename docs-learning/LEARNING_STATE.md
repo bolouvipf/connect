@@ -35,10 +35,13 @@ Mise à jour à chaque session. Checklist globale du Script 2.
 
 ## Prochaines étapes
 
-- [ ] Commit + push du chantier v2.3.0 sur `opencode-learning`
-- [ ] Reconstruction de `houetor-connect.zip` (chemins `/`, jamais Compress-Archive)
-- [ ] Vérifs finales : `wp plugin list` (2.3.0), réactivation propre sur WP vierge
-- [ ] Rapport de fin de chantier
+- [x] Commit + push du chantier v2.3.0 sur `opencode-learning` (a94b623 + 3f17c06)
+- [x] Reconstruction de `houetor-connect.zip` (chemins `/`, source synchro)
+- [x] Kit de continuité : `ONBOARDING.md` + section Learning Lab dans `README.md`
+- [x] Clés Gemini + OpenRouter ajoutées à `.env.learning` (jamais commitées)
+- [x] Analyse de `block-mcp` (GravityKit) consignée — évolutions candidates identifiées (EXPERIMENTS_LOG Exp 008)
+- [ ] Prioriser avec l'utilisateur les évolutions inspirées de block-mcp (batch atomic, ops structurelles, compte agent WP, dry_run, tier policy, PHPUnit)
+- [ ] (En attente utilisateur) Audit de `houetor-selfhare`
 
 ## Rappels de procédure
 

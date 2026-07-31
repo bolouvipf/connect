@@ -57,6 +57,17 @@ Il contient :
 
 ---
 
+## Learning Lab (branche `opencode-learning`)
+
+Le dépôt sert aussi de **terrain d'apprentissage isolé** pour faire évoluer le plugin `houetor-connect` sans risquer la production : source extraite du zip, environnement WordPress de test local, docs de vérité terrain et tests consignés en preuve.
+
+- ➡️ [`ONBOARDING.md`](./ONBOARDING.md) — kit de continuité pour les agents IA (env, règles, état, roadmap)
+- ➡️ [`docs-learning/`](./docs-learning/) — mémoire du lab (6 fichiers : source de vérité, capacités, tests, bugs, expériences, progression)
+
+**État actuel de `houetor-connect` : v2.3.0** — ref HWC, CAS (`expected_hash`), rate limit, journal d'audit, révisions forcées. Bugs #1 (versions) et #2 (`inject replace` destructeur) corrigés, 14/14 tests validés.
+
+---
+
 ## Priorités actuelles
 
 ```
