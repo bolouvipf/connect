@@ -1,0 +1,4 @@
+.env.learning
+wordpress-test-env/
+node_modules/
+*.log
