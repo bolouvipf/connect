@@ -8,6 +8,7 @@
 - **Branche de travail** : `opencode-learning` (JAMAIS `main`).
 - **Mémoire** : `ONBOARDING.md` (mode d'emploi agent), `docs-learning/` (6 fichiers : source de vérité, capacités, tests bruts, bugs, expériences, progression).
 - **État actuel** : `houetor-connect` v2.3.0 livré et testé (14/14) ; bugs #1-#4 corrigés ; zip 2.3.0 reconstruit ; dernier commit `4040700`.
+- **MISSION validée (à lancer)** : Plugin + MCP agent — créer `houetor-mcp/` (serveur MCP stdio universel) + montée 2.4.0 (batch `update_blocks` + `dry_run`). Plan complet dans `docs-learning/LEARNING_STATE.md` section « MISSION validée ».
 - **Fils ouverts** : prioriser les évolutions inspirées de block-mcp (Exp 008) ; audit `houetor-selfhare` en attente de validation utilisateur.
 
 ## Procédure

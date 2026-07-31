@@ -50,6 +50,30 @@ Mise à jour à chaque session. Checklist globale du Script 2.
 - `.env.learning` jamais commité.
 - Chaque write testé dans l'env isolé avant commit.
 
+## MISSION validée — Plugin + MCP agent (en attente d'exécution, session suivante)
+
+**Décision utilisateur (2026-07-31)** : commencer la mission = faire évoluer le plugin **ET** construire la brique MCP agent côté HOUETOR (style block-mcp) pour que les agents exaucent les demandes utilisateur exactement sur les sites.
+
+**Décisions actées** :
+- Le serveur MCP vit **dans le repo connect** : `houetor-mcp/` (version lockstep avec le plugin, comme block-mcp)
+- Première montée : **Batch atomique `update_blocks` + `dry_run`** d'abord (puis : compte agent WP moindre privilège, ops structurelles, tier policy — en séances suivantes)
+- Clients cibles : **stdio universel** (Claude Desktop, Claude Code, Cursor, opencode…) — pas de packaging .mcpb pour l'instant
+
+**Architecture cible** :
+```
+Agent IA ──stdio──▶ houetor-mcp/ (TS, repo connect, lockstep 2.4.0)
+                     ──HTTPS + X-Houetor-Token──▶ houetor-connect (plugin WP, API houetor/v1)
+```
+
+**Plan d'exécution** :
+- **Phase 0 — Reprise** : lecture mémoire ; smoke tests lab (php -l, check-setup, serveur :8888, git synchro) ; **installer Node ≥20 dans WSL** (actuel 11.12.1 — insuffisant pour MCP SDK/Vitest/esbuild)
+- **Phase 1 — MCP v1** (stdio universel) : `houetor-mcp/` avec 7 tools (`get_pages`, `get_page_blocks`, `create_block`, `update_block_content`, `delete_block`, `inject_content`, `uninject_content`) + `error-translator.ts` (erreurs → conseils d'action) + instructions ; tests Vitest mockés + intégration réelle lab WP (depuis WSL)
+- **Phase 2 — Montée 2.4.0** : (1) endpoint `POST /blocks/batch-update` (N updates = 1 révision, all-or-nothing, compte 1 écriture rate limit) + tool MCP `update_blocks` ; (2) paramètre `dry_run` sur les routes d'écriture + tool MCP
+- **Phase 3 — Scénarios « exaucés exactement »** : demandes utilisateur réalistes testées À TRAVERS le MCP (relecture = demande, audit + révision OK), consignées dans TOOLS_DISCOVERED + `houetor-mcp/README.md`
+- **Phase 4 — Livraison 2.4.0** : version lockstep (plugin header + constante + stable tag + package.json MCP + changelog), docs à jour, zip reconstruit en `/`, commits ciblés + push
+
+**Règles rappel** : jamais `main` ; `.env.learning` + token jamais commités (env vars du MCP : `WORDPRESS_URL`, `HOUETOR_TOKEN`) ; tests isolés avant affirmation ; `php -l` avant commit ; zip en `/`.
+
 ## Point de reprise — Session 2026-07-31 (fin)
 
 **Tout est commité et pushé** (`opencode-learning` synchro avec origin, working tree propre). Dernier commit : `6529067`.
