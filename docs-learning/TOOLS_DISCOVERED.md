@@ -1,56 +1,61 @@
 # Tests manuels — Résultats bruts (Règle 14 : preuve, pas de résumé)
 
-Chaque entrée : commande exacte + sortie brute. 
+## T-SERIE 001 — Test REST complet (routes d'origine) — 2026-07-31
+Voir historique : 18 tests (auth 403, parsing, create positionnel, PATCH, révisions).
+**BUG confirmé à l'époque** : `inject replace` vidait la page → corrigé (v2.3.0).
 
-## T-SERIE 001 — Test REST complet via WP_REST_Server::dispatch (2026-07-31)
+## T-SERIE 002 — Nouvelles fonctionnalités v2.3.0 (chantier Script 1) — 2026-07-31
 
-**Environnement :** localhost:8888 (env test isolé), plugin activé, token `hwc_token` généré à l'activation.
-**Méthode :** `wp --allow-root eval-file /mnt/c/Users/Kimsh/Desktop/lab/scripts/rest-test.php`
-(script exerçant chaque route via `rest_get_server()->dispatch()` avec headers simulés).
+**Méthode :** `wp --allow-root eval-file rest-test-v2.php` (14 tests).
 
-### Résultats bruts (extraits significatifs)
+### Résultats (tous PASS)
 
-**T1 — GET /pages (token valide) → 200**
+**V2-1 — create_block module + position=after + anchor_index=0 → 201**
 ```json
-{"pages":[{"id":2,"title":"Sample Page","slug":"sample-page","url":"http://localhost:8888/?page_id=2"}]}
+{"success":true,"post_id":2,"ref":"lab-d9a42013888b","message":"Bloc core/paragraph créé dans « Sample Page ». Ref générée : lab-d9a42013888b"}
 ```
 
-**T2 — GET /pages (token invalide) → 403**
+**V2-2 — get_page_blocks : ref visible + position correcte (index 1, entre 0 et le quote) → OUI**
+
+**V2-3 — update par REF → 200** : « Bloc ref "lab-d9a42013888b" (core/paragraph) mis à jour »
+**V2-4 — marqueurs HWC préservés : ref toujours visible après update → OUI**
+
+**V2-5 — CAS négatif → 409**
 ```json
-{"code":"forbidden","message":"Token invalide.","data":{"status":403}}
+{"code":"error_conflict","message":"Conflit de concurrence : le contenu de la page a changé depuis la lecture...","data":{"status":409}}
+```
+→ **l'écriture a été bloquée, aucun écrasement silencieux.**
+
+**V2-6 — anchor_ref inconnu → 404 explicite**
+```json
+{"code":"anchor_not_found","message":"Aucun bloc avec la ref \"lab-ref-inexistante\" trouvé sur la page 2.","data":{"status":404}}
+```
+→ **aucun fallback silencieux vers append.**
+
+**V2-7 — create position=before + anchor_ref → 201** (ref `lab-87c46f2d064f`)
+**V2-8 — ordre vérifié : le nouveau bloc précède bien l'ancre → OUI**
+
+**V2-9 — delete par REF → 200** ; **V2-10 — ref supprimée → OUI**
+
+**V2-11 — inject avec expected_hash faux → 409 error_conflict → OUI**
+
+**V2-12 — rate limit : 10 écritures acceptées sur la page 3, la 11e → 429**
+```json
+{"code":"rate_limited","message":"Trop d'écritures sur cette page (10/60s max). Réessayez plus tard.","data":{"status":429}}
 ```
 
-**T3 — GET /pages (sans token) → 403**
-```json
-{"code":"forbidden","message":"Token manquant.","data":{"status":403}}
+**V2-13 — journal d'audit : lignes présentes avec before/after (md5)**
+```
+2026-07-31 17:09:35 [inject] before={"page_id":3,"content_md5":"c47a0e..."} | after={"page_id":3,"content_md5":"762c2e..."}
 ```
 
-**T4 — GET /page-blocks?page_id=2 → 200, 5 blocs parsés**
-```json
-{"index":0,"blockName":"core/paragraph","content":"This is an example page. It's different from a blog post..."}
-{"index":1,"blockName":"core/quote","content":""}
-...
-"count":5
-```
+**V2-14 — révisions page 2 : 10 révisions présentes**
 
-**T8 — POST /inject → 200, block_id auto-généré** : `annonces-6a6cd48139ce0`
-**T9 — POST /inject même block_id → 200 (remplacement confirmé)**
-**T10 — POST /blocks create (insert_after_index=0) → 201** : « Bloc core/paragraph créé dans Sample Page. »
-**T11 — get_page_blocks après création** : le bloc apparaît à l'index 1, entre le bloc 0 et le bloc quote — **positionnement relatif OK**
-**T12 — PATCH /block-content (bloc 1) → 200** : « Bloc #1 (core/paragraph) mis à jour dans Sample Page. »
-**T13 — contenu modifié visible au get_page_blocks ✓**
-**T14 — POST /inject position=replace → 200 MAIS détruit tout le contenu** (voir BUGS_FIXED.md #2)
-**T15 — après replace : get_page_blocks → `"blocks": [], "count": 0`** (page vidée)
-**T16 — révisions : 5 révisions présentes** (#5 à #9, dates 16:59:45→16:59:54) — filet OK via wp_update_post auto
-**T17 — POST /uninject → 200 « Aucun bloc trouvé à retirer »** (bloc avait été détruit par le replace — cohérent)
-**T18 — DELETE /blocks sur page vidée → 404 « Bloc #0 introuvable »** (cohérent)
+### Nettoyage post-test
+- Page 2 restaurée (5 blocs d'origine, md5 `592dfd9742814297172c5f516bcd40e3` retrouvé)
+- Page 3 restaurée (révision #15, avant les injects)
+- `php -l` : 0 erreur sur 14 fichiers
 
-### Actions post-tests
-- Restauration page 2 via `wp_restore_post_revision(5)` → 5 blocs d'origine rétablis (vérifié).
-- `php -l` sur les 14 fichiers .php du plugin → **0 erreur de syntaxe**.
-
-## Tests à venir (chantier Script 1)
-- create_block avec ref HWC + position before/after par anchor
-- CAS expected_hash (faux hash → conflit attendu)
-- Rate limit (10 écritures/60s)
-- Journal d'audit
+## Tests à venir
+- Tests HTTP complets (curl depuis Windows → en attente du pare-feu Hyper-V, non bloquant : tests via dispatch internes équivalents)
+- Non-régression /inject /uninject (routes intactes)

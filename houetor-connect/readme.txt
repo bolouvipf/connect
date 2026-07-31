@@ -4,7 +4,7 @@ Donate link: https://houetor.com
 Tags: houetor, hare, annonces, produits, formations, api
 Requires at least: 5.8
 Tested up to: 6.8
-Stable tag: 2.1.0
+Stable tag: 2.3.0
 Requires PHP: 7.4
 License: GPL-2.0+
 License URI: http://www.gnu.org/licenses/gpl-2.0.txt
@@ -53,6 +53,23 @@ Oui, vous pouvez configurer autant d\'injections que nécessaire dans la section
 Vérifiez que votre code HWT est valide et que la page sélectionnée existe. Le cache est rafraîchi toutes les 5 minutes.
 
 == Changelog ==
+
+= 2.3.0 =
+* Ciblage des blocs par ref HWC ({module}-{block_id}) en plus de l'index
+* Ref HWC auto-générée sur les blocs créés via POST /blocks (paramètre module)
+* Positionnement "start" | "end" | "before" | "after" avec anchor_ref/anchor_index
+  sur POST /blocks — erreur explicite anchor_not_found (jamais de fallback silencieux)
+* CAS (compare-and-swap) sur toutes les écritures via expected_hash (md5 du post_content) —
+  conflit => 409 error_conflict, jamais d'écrasement silencieux
+* Rate limiting des écritures : 10/60s par page (429 rate_limited)
+* Journal d'audit : table {prefix}houetor_connect_actions_log (before/after par action)
+* wp_save_post_revision() avant écriture sur /inject et /uninject (filet de sécurité)
+* GET /page-blocks renvoie content_md5 + ref par bloc
+* Versions alignées (header + constante + readme)
+
+= 2.2.0 =
+* Édition bloc par bloc : GET /page-blocks, PATCH /block-content, POST/DELETE /blocks
+* wp_save_post_revision() avant écriture des routes blocs
 
 = 2.1.0 =
 * Ajout de l\'API REST pour la communication bidirectionnelle

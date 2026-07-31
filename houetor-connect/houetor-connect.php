@@ -4,7 +4,7 @@
  * Plugin Name:       Houetor Connect
  * Plugin URI:        https://houetor.com
  * Description:       Connecte votre site WordPress a Houetor Hare. Affiche automatiquement vos annonces, produits ou formations selon votre profil HWT.
- * Version:           2.1.0
+ * Version:           2.3.0
  * Author:            Houetor
  * Author URI:        https://houetor.com
  * License:           GPL-2.0+
@@ -17,7 +17,7 @@
 
 defined('ABSPATH') || exit;
 
-define('HWC_VERSION', '2.2.0');
+define('HWC_VERSION', '2.3.0');
 define('HWC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('HWC_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('HWC_API_BASE', 'https://houetor.com/api/public');
@@ -79,9 +79,28 @@ function hwc_handle_ajax_order() {
     wp_send_json_success(array('message' => 'Votre commande a été envoyée avec succès.'));
 }
 
+function hwc_create_audit_table() {
+    global $wpdb;
+    $table = $wpdb->prefix . 'houetor_connect_actions_log';
+    $charset_collate = $wpdb->get_charset_collate();
+    $sql = "CREATE TABLE IF NOT EXISTS $table (
+        id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+        action_type VARCHAR(50) NOT NULL,
+        before_json LONGTEXT NULL,
+        after_json LONGTEXT NULL,
+        created_at DATETIME NOT NULL,
+        PRIMARY KEY  (id),
+        KEY action_type (action_type),
+        KEY created_at (created_at)
+    ) $charset_collate;";
+    require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+    dbDelta($sql);
+}
+
 function hwc_activate() {
     if (!get_option('hwc_token')) {
         update_option('hwc_token', wp_generate_password(32, false));
     }
+    hwc_create_audit_table();
 }
 register_activation_hook(__FILE__, 'hwc_activate');

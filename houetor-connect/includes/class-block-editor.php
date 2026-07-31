@@ -28,17 +28,70 @@ class HWC_Block_Editor {
                 'index'     => $index,
                 'blockName' => $block_name,
                 'content'   => $text,
+                'ref'       => self::extract_hwc_ref($block),
             ];
             $index++;
         }
 
-        return ['success' => true, 'blocks' => $result, 'count' => count($result)];
+        return [
+            'success'     => true,
+            'blocks'      => $result,
+            'count'       => count($result),
+            'content_md5' => md5($content),
+        ];
     }
 
-    public static function update_block_content($page_id, $block_index, $new_content) {
+    /**
+     * Extrait la ref HWC ({module}-{block_id}) si le bloc est enrobé des marqueurs
+     * <!-- HWC ... start/end -->. Sinon null — l'agent utilisera index.
+     */
+    public static function extract_hwc_ref($block) {
+        $html = $block['innerHTML'] ?? '';
+        if (preg_match('/^<!-- HWC ([A-Za-z0-9_]+-[A-Za-z0-9_-]+) start -->/', trim($html), $m)) {
+            return $m[1];
+        }
+        return null;
+    }
+
+    /**
+     * Vérification CAS : expected_hash (md5 du post_content au moment de la lecture)
+     * doit correspondre au contenu actuel. Null = vérification désactivée.
+     */
+    public static function cas_check($post, $expected_hash) {
+        if ($expected_hash === null || $expected_hash === '') {
+            return true;
+        }
+        return md5($post->post_content) === $expected_hash;
+    }
+
+    /**
+     * Localise l'index logique d'un bloc par ref. Retourne l'index ou null.
+     */
+    public static function find_block_index_by_ref($page_id, $ref) {
+        $post = get_post($page_id);
+        if (!$post) {
+            return null;
+        }
+        $blocks = parse_blocks($post->post_content);
+        $actual = 0;
+        foreach ($blocks as $block) {
+            if (empty($block['blockName'])) continue;
+            if (self::extract_hwc_ref($block) === $ref) {
+                return $actual;
+            }
+            $actual++;
+        }
+        return null;
+    }
+
+    public static function update_block_content($page_id, $block_index = null, $new_content = '', $ref = null, $expected_hash = null) {
         $post = get_post($page_id);
         if (!$post) {
             return ['success' => false, 'message' => 'Page introuvable.'];
+        }
+
+        if (!self::cas_check($post, $expected_hash)) {
+            return ['success' => false, 'error' => 'conflict', 'message' => 'Conflit de concurrence : le contenu de la page a changé depuis la lecture. Relancez get_page_blocks et repassez le expected_hash à jour.'];
         }
 
         $content = $post->post_content;
@@ -50,29 +103,53 @@ class HWC_Block_Editor {
 
         $actual_index = 0;
         $target_idx = null;
+        $target_ref = null;
         foreach ($blocks as $idx => $block) {
             if (empty($block['blockName'])) continue;
-            if ($actual_index === $block_index) {
-                $target_idx = $idx;
-                break;
+            if ($ref !== null) {
+                $r = self::extract_hwc_ref($block);
+                if ($r === $ref) {
+                    $target_idx = $idx;
+                    $target_ref = $r;
+                    break;
+                }
+            } else {
+                if ($actual_index === $block_index) {
+                    $target_idx = $idx;
+                    $target_ref = self::extract_hwc_ref($block);
+                    break;
+                }
             }
             $actual_index++;
         }
 
         if ($target_idx === null) {
+            if ($ref !== null) {
+                return ['success' => false, 'message' => "Aucun bloc avec la ref \"$ref\" trouvé sur la page $page_id."];
+            }
             $total = 0;
             foreach ($blocks as $b) { if (!empty($b['blockName'])) $total++; }
             return ['success' => false, 'message' => "Bloc #$block_index introuvable (0-" . ($total - 1) . " disponible). Utilise get_page_blocks pour voir les indices valides."];
         }
 
         $block_name = $blocks[$target_idx]['blockName'];
-        $old_html = $blocks[$target_idx]['innerHTML'];
 
         if (!empty($blocks[$target_idx]['innerBlocks'])) {
-            return ['success' => false, 'message' => "Le bloc #$block_index ($block_name) contient des blocs imbriqués et ne peut pas être modifié directement."];
+            return ['success' => false, 'message' => "Le bloc #$actual_index ($block_name) contient des blocs imbriqués et ne peut pas être modifié directement."];
         }
 
-        $old_html = trim($old_html);
+        // Extraire les marqueurs HWC s'ils enrobent le bloc (à préserver)
+        $marker_start = '';
+        $marker_end = '';
+        $old_html = trim($blocks[$target_idx]['innerHTML']);
+
+        if ($target_ref !== null) {
+            $marker_start = '<!-- HWC ' . $target_ref . ' start -->';
+            $marker_end = '<!-- HWC ' . $target_ref . ' end -->';
+            $old_html = preg_replace('/^<!-- HWC [A-Za-z0-9_]+-[A-Za-z0-9_-]+ start -->/', '', $old_html);
+            $old_html = preg_replace('/<!-- HWC [A-Za-z0-9_]+-[A-Za-z0-9_-]+ end -->$/', '', $old_html);
+            $old_html = trim($old_html);
+        }
 
         if (preg_match('/^<(\w+)/', $old_html, $m)) {
             $tag = $m[1];
@@ -85,6 +162,8 @@ class HWC_Block_Editor {
         } else {
             $new_html = $new_content;
         }
+
+        $new_html = $marker_start . $new_html . $marker_end;
 
         $blocks[$target_idx]['innerHTML'] = $new_html;
         foreach ($blocks[$target_idx]['innerContent'] as $ic => $chunk) {
@@ -111,13 +190,22 @@ class HWC_Block_Editor {
         }
 
         $post_title = $post->post_title;
-        return ['success' => true, 'post_id' => $updated, 'message' => "Bloc #$block_index ($block_name) mis à jour dans « $post_title »."];
+        $cible = $ref !== null ? "ref \"$ref\"" : "bloc #$block_index";
+        return ['success' => true, 'post_id' => $updated, 'message' => "Bloc $cible ($block_name) mis à jour dans « $post_title »."];
     }
 
-    public static function create_block($page_id, $block_name, $content, $insert_after_index = null, $insert_before_index = null) {
+    /**
+     * Crée un bloc. Si $module est fourni, le bloc est enrobé de marqueurs HWC
+     * (ref auto-générée) pour être retrouvable par ref ensuite.
+     */
+    public static function create_block($page_id, $block_name, $content, $insert_after_index = null, $insert_before_index = null, $module = '', $expected_hash = null) {
         $post = get_post($page_id);
         if (!$post) {
             return ['success' => false, 'message' => 'Page introuvable.'];
+        }
+
+        if (!self::cas_check($post, $expected_hash)) {
+            return ['success' => false, 'error' => 'conflict', 'message' => 'Conflit de concurrence : le contenu de la page a changé depuis la lecture. Relancez get_page_blocks et repassez le expected_hash à jour.'];
         }
 
         $allowed_blocks = [
@@ -198,6 +286,23 @@ class HWC_Block_Editor {
             ];
         }
 
+        // Enrobage HWC automatique si module fourni (spec 3.3 : ref stable pour l'agent)
+        $ref = null;
+        if (!empty($module)) {
+            $module = sanitize_title($module);
+            $ref_id = substr(md5($page_id . '|' . $module . '|' . uniqid('', true)), 0, 12);
+            $ref = $module . '-' . $ref_id;
+            $marker_start = '<!-- HWC ' . $ref . ' start -->';
+            $marker_end = '<!-- HWC ' . $ref . ' end -->';
+            $new_block['innerHTML'] = $marker_start . $new_block['innerHTML'] . $marker_end;
+            $new_block['innerContent'] = array_map(function ($chunk) use ($marker_start, $marker_end) {
+                if (is_string($chunk)) {
+                    return $marker_start . $chunk . $marker_end;
+                }
+                return $chunk;
+            }, $new_block['innerContent']);
+        }
+
         if ($insert_after_index !== null) {
             $insert_after_index = intval($insert_after_index);
             $pos = self::find_block_position($blocks, $insert_after_index);
@@ -229,13 +334,22 @@ class HWC_Block_Editor {
             return ['success' => false, 'message' => $updated->get_error_message()];
         }
 
-        return ['success' => true, 'post_id' => $updated, 'message' => "Bloc $block_name créé dans « {$post->post_title} »."];
+        return [
+            'success'  => true,
+            'post_id'  => $updated,
+            'ref'      => $ref,
+            'message'  => "Bloc $block_name créé dans « {$post->post_title} »." . ($ref ? " Ref générée : $ref" : ''),
+        ];
     }
 
-    public static function delete_block($page_id, $block_index) {
+    public static function delete_block($page_id, $block_index = null, $ref = null, $expected_hash = null) {
         $post = get_post($page_id);
         if (!$post) {
             return ['success' => false, 'message' => 'Page introuvable.'];
+        }
+
+        if (!self::cas_check($post, $expected_hash)) {
+            return ['success' => false, 'error' => 'conflict', 'message' => 'Conflit de concurrence : le contenu de la page a changé depuis la lecture. Relancez get_page_blocks et repassez le expected_hash à jour.'];
         }
 
         $content = $post->post_content;
@@ -245,14 +359,24 @@ class HWC_Block_Editor {
         $target_idx = null;
         foreach ($blocks as $idx => $block) {
             if (empty($block['blockName'])) continue;
-            if ($actual_index === $block_index) {
-                $target_idx = $idx;
-                break;
+            if ($ref !== null) {
+                if (self::extract_hwc_ref($block) === $ref) {
+                    $target_idx = $idx;
+                    break;
+                }
+            } else {
+                if ($actual_index === $block_index) {
+                    $target_idx = $idx;
+                    break;
+                }
             }
             $actual_index++;
         }
 
         if ($target_idx === null) {
+            if ($ref !== null) {
+                return ['success' => false, 'message' => "Aucun bloc avec la ref \"$ref\" trouvé sur la page $page_id."];
+            }
             return ['success' => false, 'message' => "Bloc #$block_index introuvable."];
         }
 
@@ -270,7 +394,8 @@ class HWC_Block_Editor {
             return ['success' => false, 'message' => $updated->get_error_message()];
         }
 
-        return ['success' => true, 'post_id' => $updated, 'message' => "Bloc #$block_index supprimé de « {$post->post_title} »."];
+        $cible = $ref !== null ? "ref \"$ref\"" : "bloc #$block_index";
+        return ['success' => true, 'post_id' => $updated, 'message' => "Bloc $cible supprimé de « {$post->post_title} »."];
     }
 
     private static function find_block_position($blocks, $target_index) {

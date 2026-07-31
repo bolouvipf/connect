@@ -2,21 +2,34 @@
 
 Format : symptôme observé / cause racine (preuve code) / fix appliqué / commit hash / statut.
 
-## Bug #1 — Versions incohérentes (header 2.1.0 vs HWC_VERSION 2.2.0) — SIGNALÉ, PAS CORRIGÉ
+## Bug #1 — Versions incohérentes (header 2.1.0 vs HWC_VERSION 2.2.0) — ✅ CORRIGÉ (v2.3.0)
 
-- **Symptôme** : `houetor-connect.php` header `Version: 2.1.0` (ligne 6), constante `HWC_VERSION = '2.2.0'` (ligne 14), readme.txt `Stable tag: 2.1.0` (ligne 7). Confirmé en pratique : `wp plugin list` affiche `2.1.0`.
-- **Cause racine probable** : le bump 2.2.0 (commit ca1734e « block-aware CRUD endpoints ») a mis à jour la constante mais pas le header ni le stable tag.
-- **Impact** : version affichée wp-admin (2.1.0) ≠ code réel (2.2.0).
-- **Fix** : aligner header + readme.txt sur 2.2.0 (recommandé) ou baisser la constante.
-- **Statut** : non corrigé — en attente de décision utilisateur.
+- **Symptôme** : header `Version: 2.1.0` (houetor-connect.php:6), constante `2.2.0` (ligne 14), stable tag `2.1.0` (readme.txt:7). Confirmé en pratique : `wp plugin list` affichait 2.1.0.
+- **Cause racine** : bump 2.2.0 (commit ca1734e) incomplet — constante seule mise à jour.
+- **Fix** : bump complet vers **2.3.0** (header + constante + stable tag + changelog 2.2.0/2.3.0 documentés).
+- **Commit** : à venir (chantier v2.3.0).
+- **Statut** : testé — `check-setup.php` confirme `HWC_VERSION = 2.3.0`.
 
-## Bug #2 — `/inject` position=replace DÉTRUIT tout le contenu de la page (confirmé en réel) — SIGNALÉ, PAS CORRIGÉ
+## Bug #2 — `/inject` position=replace DÉTRUIT tout le contenu — ✅ CORRIGÉ (v2.3.0)
 
-- **Symptôme** (test T14/T15, 2026-07-31) : `POST /houetor/v1/inject {position:"replace"}` → 200 ; le `get_page_blocks` suivant renvoie `"blocks": [], "count": 0`. Toute la page existante est remplacée par le seul bloc injecté.
-- **Cause racine** : class-rest-api.php:198-200 — `case 'replace': $new_content = $injected;` remplace l'intégralité de `post_content`. Aucune vérification, aucun CAS, aucun garde-fou côté `/inject` (pas d'appel explicite `wp_save_post_revision()` avant écriture, contrairement aux routes `/blocks` qui le font).
-- **Impact** : une erreur de l'agent (position mal comprise) peut effacer une page entière. La restauration n'est possible que via les révisions WP (auto).
-- **Correspond à la spec Script 1** : insuffisance #5 « Pas de update_block_content ciblé — risque d'écraser le reste » + #7 « Pas de CAS ».
-- **Fix proposé** (à valider) : ajouter `wp_save_post_revision()` + CAS sur `/inject` aussi, ou documenter explicitement `replace` comme dangereux côté agent.
-- **Statut** : non corrigé — documenté pour le chantier Script 1.
+- **Symptôme** (test T14/T15) : `inject {position:"replace"}` → 200, la page se retrouve à `count: 0`. Aucun filet de sécurité.
+- **Cause racine** : class-rest-api.php `case 'replace'` remplace tout `post_content` ; pas de `wp_save_post_revision()` avant écriture, pas de CAS.
+- **Fix** :
+  1. `wp_save_post_revision($page_id)` AVANT toute écriture dans `/inject` ET `/uninject`
+  2. CAS (`expected_hash`, md5 du post_content) sur `/inject`, `/uninject`, `/block-content`, `/blocks` → conflit = 409 `error_conflict`, jamais d'écrasement silencieux
+- **Vérifié** : V2-5 (CAS bloque → 409), V2-11 (inject CAS → 409), V2-14 (révisions présentes).
+- **Statut** : testé.
 
-## (Aucun bug corrigé pour l'instant — session d'installation)
+## Bug #3 — Pas de ref stable pour les blocs créés — ✅ CORRIGÉ (v2.3.0)
+
+- **Symptôme** : les blocs créés via `/blocks` n'étaient pas enrobés de marqueurs HWC → invisibles au ciblage par ref, contrairement aux blocs `/inject`.
+- **Fix** : `create_block()` enrobe automatiquement le nouveau bloc (`module` param) d'une ref auto-générée `{module}-{md5 12 chars}` ; `get_page_blocks` renvoie `ref` par bloc + `content_md5` ; update/delete acceptent `ref` OU `index` (ref prioritaire) en préservant les marqueurs.
+- **Vérifié** : V2-1..V2-4, V2-7..V2-10.
+- **Statut** : testé.
+
+## Bug #4 — Pas de rate limiting ni journal d'audit — ✅ CORRIGÉ (v2.3.0)
+
+- **Symptôme** : un bug agent pouvait spammer les écritures sans frein ni traçabilité (contraire règle 14).
+- **Fix** : transient `hwc_ratelimit_{page_id}` (10 écritures/60s, 429) sur toutes les routes d'écriture ; table `{prefix}houetor_connect_actions_log` créée à l'activation, chaque update/create/delete/inject/uninject journalisé (before/after md5).
+- **Vérifié** : V2-12 (10 OK puis 429), V2-13 (lignes d'audit).
+- **Statut** : testé.
