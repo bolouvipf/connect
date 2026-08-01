@@ -77,12 +77,24 @@ server.listen(PORT, async () => {
     const after2 = await getPage('2')
     check('S2 relecture : contenu mis à jour', after2.blocks[0].content.includes('99'))
 
+    // ===== S7 — « Transforme le bloc avantage en titre » =====
+    const s7 = await rpc('transform_block', {
+      page_id: '2',
+      ref: refA,
+      target_block_name: 'core/heading',
+      expected_hash: after2.content_md5,
+    })
+    const s7Body = await s7.json()
+    check('S7 transform paragraph→heading → 200 + target', s7.status === 200 && s7Body.result?.data?.target_blockName === 'core/heading', s7Body.error?.message ?? '')
+    const afterS7 = await getPage('2')
+    check('S7 relecture : bloc A est core/heading (ref conservée)', afterS7.blocks.find((b) => b.ref === refA)?.blockName === 'core/heading')
+
     // ===== S3 — « Fais une répétition générale avant de publier (dry_run) » =====
     const s3 = await rpc('update_block_content', {
       page_id: '2',
       ref: refA,
       new_content: 'Ne pas appliquer',
-      expected_hash: after2.content_md5,
+      expected_hash: afterS7.content_md5,
       dry_run: true,
     })
     const s3Body = await s3.json()
@@ -168,7 +180,7 @@ server.listen(PORT, async () => {
     const sse = await fetch(`http://localhost:${PORT}/mcp`, { headers: { 'x-hwt-token': HWT } })
     const sseText = await sse.text()
     const sseBody = JSON.parse(sseText.replace('data: ', '').replace('\n\n', ''))
-    check('SSE : update_blocks listé dans les tools', sse.status === 200 && sseBody.tools.some((t) => t.name === 'update_blocks'))
+    check('SSE : update_blocks et transform_block listés dans les tools', sse.status === 200 && sseBody.tools.some((t) => t.name === 'update_blocks') && sseBody.tools.some((t) => t.name === 'transform_block'))
   } catch (err) {
     results.push({ label: 'exception', ok: false, detail: String(err) })
     console.log('FAIL exception —', err)

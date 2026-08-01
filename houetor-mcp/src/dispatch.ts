@@ -176,6 +176,25 @@ export async function dispatch(method: string, params: Record<string, unknown>, 
       )
     }
 
+    case 'transform_block': {
+      requireParams(params, ['page_id', 'target_block_name'])
+      if (!params.ref && !params.block_index) {
+        throw new MethodError(400, 'parametre manquant: ref ou block_index obligatoire')
+      }
+      return ok(
+        (
+          await wp.transformBlock({
+            page_id: String(params.page_id),
+            ref: params.ref ? String(params.ref) : undefined,
+            block_index: params.block_index ? String(params.block_index) : undefined,
+            target_block_name: String(params.target_block_name),
+            expected_hash: params.expected_hash ? String(params.expected_hash) : undefined,
+            dry_run: boolParam(params, 'dry_run'),
+          })
+        ).data,
+      )
+    }
+
     case 'export_to_wordpress': {
       requireParams(params, ['page_id', 'html', 'module'])
       const { data } = await wp.inject({

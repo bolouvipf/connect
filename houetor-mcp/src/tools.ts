@@ -111,6 +111,19 @@ export const HWT_TOOLS: HWTool[] = [
     },
   },
   {
+    name: 'transform_block',
+    description: "Transformer un bloc existant vers un autre type (contenu texte préservé, ref HWC conservée). Types supportés : core/paragraph, core/heading, core/quote, core/list, core/code, core/preformatted, core/pullquote",
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {
+      page_id: { type: 'string', required: true, description: 'ID de la page WordPress' },
+      ref: { type: 'string', required: false, description: 'Ref HWC du bloc (prioritaire sur block_index)' },
+      block_index: { type: 'string', required: false, description: 'Index du bloc (si pas de ref)' },
+      target_block_name: { type: 'string', required: true, description: 'Type cible (blocs de texte uniquement, ex: core/heading)' },
+      expected_hash: { type: 'string', required: false, description: 'md5 du contenu attendu (CAS, issu de get_page_blocks)' },
+      dry_run: { type: 'boolean', required: false, description: 'true = valider sans rien écrire (aucune révision, aucun audit)' },
+    },
+  },
+  {
     name: 'export_to_wordpress',
     description: "Exporter du contenu vers WordPress (upload d'images puis injection)",
     profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],

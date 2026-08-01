@@ -135,4 +135,15 @@ export class WordPressClient {
   }) {
     return this.request({ method: 'POST', path: '/blocks/batch-update', body: params })
   }
+
+  transformBlock(params: {
+    page_id: string
+    ref?: string
+    block_index?: string
+    target_block_name: string
+    expected_hash?: string
+    dry_run?: boolean
+  }) {
+    return this.request({ method: 'POST', path: '/blocks/transform', body: params })
+  }
 }

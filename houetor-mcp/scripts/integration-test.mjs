@@ -67,11 +67,58 @@ server.listen(PORT, async () => {
     check('nombre de blocs = avant + 1', blocks2.length === countBefore + 1, `before=${countBefore} after=${blocks2.length}`)
     const md5After = blocks2Body.result?.data?.content_md5
 
+    // ---- v2.5.0 : transform_block (2 écritures réelles — budget rate limit : 10) ----
+    const tfRes = await rpc('transform_block', {
+      page_id: '2',
+      ref,
+      target_block_name: 'core/heading',
+      expected_hash: md5After,
+    })
+    const tfBody = await tfRes.json()
+    check(
+      'transform_block paragraph→heading → 200 + target_blockName',
+      tfRes.status === 200 && tfBody.result?.data?.target_blockName === 'core/heading',
+      tfBody.error?.message ?? '',
+    )
+    const blocksTf = (await (await rpc('get_page_blocks', { page_id: '2' })).json()).result?.data?.blocks ?? []
+    check('transform: ref conservée + blockName heading', blocksTf.find((b) => b.ref === ref)?.blockName === 'core/heading')
+
+    const tfBad = await rpc('transform_block', {
+      page_id: '2',
+      ref,
+      target_block_name: 'core/quote',
+      expected_hash: 'hash-inexistant',
+      dry_run: true,
+    })
+    const tfBadBody = await tfBad.json()
+    check(
+      'transform CAS périmé (dry_run) → 409 traduit',
+      tfBad.status === 409 && tfBadBody.error?.data?.code === 'error_conflict',
+      tfBadBody.error?.message ?? '',
+    )
+
+    const tfMedia = await rpc('transform_block', {
+      page_id: '2',
+      ref,
+      target_block_name: 'core/image',
+      dry_run: true,
+    })
+    const tfMediaBody = await tfMedia.json()
+    check('transform cible media (dry_run) → 400 traduit', tfMedia.status === 400, tfMediaBody.error?.message ?? '')
+
+    const tfBack = await rpc('transform_block', {
+      page_id: '2',
+      ref,
+      target_block_name: 'core/paragraph',
+    })
+    check('transform heading→paragraph (retour) → 200', tfBack.status === 200)
+    const md5Tf = (await (await rpc('get_page_blocks', { page_id: '2' })).json()).result?.data?.content_md5
+
     const updRes = await rpc('update_block_content', {
       page_id: '2',
       ref,
       new_content: '<p>MCP lab — modifié</p>',
-      expected_hash: md5After,
+      expected_hash: md5Tf,
     })
     const updBody = await updRes.json()
     check('update_block_content → 200', updRes.status === 200, updBody.error?.message ?? '')

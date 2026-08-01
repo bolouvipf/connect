@@ -188,6 +188,67 @@ describe('handleRequest', () => {
     expect(parsed.tools.some((t: { name: string }) => t.name === 'update_blocks')).toBe(true)
   })
 
+  it('transform_block appelle /blocks/transform avec target_block_name + dry_run', async () => {
+    mockFetchOnce(200, { success: true, blockName: 'core/paragraph', target_blockName: 'core/heading', dry_run: false })
+    const res = await post('transform_block', {
+      page_id: '2',
+      ref: 'lab-aaa',
+      target_block_name: 'core/heading',
+      expected_hash: 'md5-x',
+      dry_run: 'true',
+    })
+    expect(res.status).toBe(200)
+    const call = vi.mocked(fetch).mock.calls[0]
+    expect(String(call[0])).toBe('http://localhost:8888/wp-json/houetor/v1/blocks/transform')
+    expect(call[1]?.method).toBe('POST')
+    const sent = JSON.parse(String(call[1]?.body))
+    expect(sent.ref).toBe('lab-aaa')
+    expect(sent.target_block_name).toBe('core/heading')
+    expect(sent.dry_run).toBe(true)
+    expect(sent.expected_hash).toBe('md5-x')
+    const body = await res.json()
+    expect(body.result.data.target_blockName).toBe('core/heading')
+  })
+
+  it('transform_block sans cible → 400', async () => {
+    const res = await post('transform_block', { page_id: '2', target_block_name: 'core/heading' })
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error.message).toContain('ref ou block_index')
+  })
+
+  it('transform_block sans target_block_name → 400', async () => {
+    const res = await post('transform_block', { page_id: '2', ref: 'lab-aaa' })
+    expect(res.status).toBe(400)
+  })
+
+  it('transform_block traduit le 409 CAS du plugin', async () => {
+    mockFetchOnce(409, { code: 'error_conflict', message: 'le contenu a change' })
+    const res = await post('transform_block', {
+      page_id: '2',
+      ref: 'lab-aaa',
+      target_block_name: 'core/heading',
+      expected_hash: 'ancien',
+    })
+    expect(res.status).toBe(409)
+    const body = await res.json()
+    expect(body.error.data.code).toBe('error_conflict')
+    expect(body.error.message).toContain('get_page_blocks')
+  })
+
+  it('SSE GET liste le tool transform_block', async () => {
+    const res = await handleRequest(
+      new Request('http://localhost:8890/mcp', {
+        method: 'GET',
+        headers: { 'x-hwt-token': 'HWT-ONG-abc' },
+      }),
+      CONFIG,
+    )
+    const text = await res.text()
+    const parsed = JSON.parse(text.replace('data: ', '').replace('\n\n', ''))
+    expect(parsed.tools.some((t: { name: string }) => t.name === 'transform_block')).toBe(true)
+  })
+
   it('paramètre requis manquant → 400', async () => {
     mockFetchOnce(200, {})
     const res = await post('create_block', {})
