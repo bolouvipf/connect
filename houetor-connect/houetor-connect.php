@@ -102,5 +102,24 @@ function hwc_activate() {
         update_option('hwc_token', wp_generate_password(32, false));
     }
     hwc_create_audit_table();
+    if (get_option('hwc_audit_retention_days') === false) {
+        update_option('hwc_audit_retention_days', 90);
+    }
+    if (!wp_next_scheduled('hwc_audit_cleanup')) {
+        wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', 'hwc_audit_cleanup');
+    }
 }
 register_activation_hook(__FILE__, 'hwc_activate');
+
+function hwc_deactivate() {
+    wp_clear_scheduled_hook('hwc_audit_cleanup');
+}
+register_deactivation_hook(__FILE__, 'hwc_deactivate');
+
+/**
+ * Runner du CRON quotidien de rétention du journal d'audit.
+ */
+function hwc_audit_cleanup_runner() {
+    HWC_REST_API::audit_cleanup();
+}
+add_action('hwc_audit_cleanup', 'hwc_audit_cleanup_runner');

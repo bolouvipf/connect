@@ -159,6 +159,37 @@ class HWC_REST_API {
         ));
     }
 
+    /**
+     * Purge du journal d'audit : supprime les lignes plus anciennes que
+     * hwc_audit_retention_days (option, défaut 90, filtrable via le filtre
+     * hwc_audit_retention_days) par chunks bornés (500 lignes / itération,
+     * 200 itérations max) pour éviter les verrous longs.
+     * Appelé par le CRON quotidien hwc_audit_cleanup. Retourne le nombre de
+     * lignes supprimées (0 si rétention désactivée par une valeur <= 0).
+     */
+    public static function audit_cleanup() {
+        global $wpdb;
+        $days = intval(apply_filters('hwc_audit_retention_days', get_option('hwc_audit_retention_days', 90)));
+        if ($days <= 0) {
+            return 0;
+        }
+        $table = $wpdb->prefix . 'houetor_connect_actions_log';
+        $cutoff = date('Y-m-d H:i:s', time() - $days * DAY_IN_SECONDS);
+        $deleted = 0;
+        $max_chunks = 200;
+        while ($max_chunks-- > 0) {
+            $rows = $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE created_at < %s LIMIT 500", $cutoff));
+            if ($rows === false) {
+                break;
+            }
+            $deleted += $rows;
+            if ($rows < 500) {
+                break;
+            }
+        }
+        return $deleted;
+    }
+
     public function get_pages() {
         $pages = get_pages(array('number' => 100));
 
