@@ -43,8 +43,10 @@ Mise à jour à chaque session. Checklist globale du Script 2.
 - [x] Phase 1 mission MCP : miroir `houetor-mcp/` v2.3.0 construit + testé (18/18 unitaires, 16/16 intégration)
 - [x] Phase 2 mission : plugin+MCP 2.4.0 (batch `update_blocks` + `dry_run`) livré et testé (V3 32/32, régression 14/14, unitaires 24/24, intégration 28/28), commits `599f388`/`a76318a`/`3663900`
 - [x] Phase 3 mission : scénarios « exaucés exactement » via le MCP miroir (24/24 PASS, TOOLS_DISCOVERED série 003, README MCP à jour) — commit `1a4252a`
-- [x] Phase 4 mission : portage `app/mcp/` (nécessite accès prod + validation utilisateur) ; sinon évolutions roadmap block-mcp
+- [x] Phase 4 mission : portage `app/mcp/` **préparé dans le lab** (`houetor-mcp/portage-app-mcp/` : error-translator + 6 tools + dispatch, typecheck 0 erreur vs types prod) — **déploiement en attente de validation utilisateur** (copie dans le repo prod) ; sinon évolutions roadmap block-mcp
 - [x] Objectif explicité dans les docs : « toute action CRUD demandée par l'utilisateur s'exécute sans erreur » (ONBOARDING §1, README racine, README MCP, AGENTS.md, LEARNING_STATE) — 2026-08-01
+- [x] Agents opencode configurés (globaux) : `analyste` + `relecteur` sur Gemini 3.6 flash gratuit (provider google, `{env:GEMINI_API_KEY}`) + clé enregistrée en variable utilisateur — redémarrage opencode requis
+- [x] Vérif sécurité clés : GEMINI/OPENROUTER absentes de tout historique git (connect public + houetor privé), recherche GitHub 0 résultat, `.env.learning` jamais commité — 2026-08-01
 - [ ] Prioriser avec l'utilisateur les évolutions inspirées de block-mcp (ops structurelles, compte agent WP, tier policy, PHPUnit)
 - [ ] (En attente utilisateur) Audit de `houetor-selfhare`
 
@@ -87,24 +89,23 @@ Le lab `houetor-mcp/` est un **miroir testé** du MCP : mêmes patterns (route/t
 
 **Règles rappel** : jamais `main` ; `.env.learning` + token jamais commités (env vars du MCP : `WORDPRESS_URL`, `HOUETOR_TOKEN`) ; tests isolés avant affirmation ; `php -l` avant commit ; zip en `/`.
 
-## Point de reprise — Session 2026-08-01 (Phase 3 terminée)
+## Point de reprise — Session 2026-08-01 (Phase 4 portage préparé dans le lab)
 
 **Tout est commité et pushé** (`opencode-learning` synchro avec origin, working tree propre).
 
 | Élément | État |
 |---|---|
-| **Phase 2 mission — plugin 2.4.0** | ✅ Batch atomique `POST /blocks/batch-update` (N updates = 1 révision, all-or-nothing, max 50, 1 écriture rate limit) + `dry_run` sur toutes les écritures (aucune écriture/révision/audit/rate limit) — tests V3 **32/32 PASS** |
-| **Phase 2 mission — MCP 2.4.0** | ✅ Tool `update_blocks` + dry_run sur 5 tools d'écriture — unitaires **24/24**, intégration **28/28** vs WP lab ; mapping inject `html`→`content` aligné prod |
-| **Phase 3 mission — scénarios « exaucés exactement »** | ✅ `scripts/scenarios-test.mjs` : 6 scénarios utilisateur via le MCP miroir (ajout avant pied de page, correction texte, répétition dry_run, batch 2 corrections, suppression, conflit concurrent 409) — **24/24 PASS** ; audit + révisions prouvés ; consigné TOOLS_DISCOVERED série 003 + README MCP |
-| **Livraison lockstep 2.4.0** | ✅ Commits `599f388` (plugin), `a76318a` (zip), `3663900` (MCP), `1a4252a` (Phase 3) — pushés |
+| **Phase 4 mission — portage `app/mcp/` (dans le lab)** | ✅ `houetor-mcp/portage-app-mcp/` : `original/` (copie brute prod) + `src/` (error-translator.ts + tools.ts +6 tools & inject étendu + dispatch.ts +6 méthodes & helpers resolveSite/pluginRequest + ALLOWED_METHODS) — **typecheck `npx tsc --noEmit` 0 erreur vs types réels prod** (junction node_modules + tsconfig `@/*` → repo prod) ; `route.ts`/`parser.ts` inchangés ; **déploiement dans le repo prod EN ATTENTE de validation utilisateur** (prérequis plugin clients ≥ 2.3.0 / 2.4.0 pour batch+dry_run) |
+| **Agents opencode (globaux)** | ✅ `~/.config/opencode/agents/analyste.md` + `relecteur.md` (mode subagent, Gemini 3.6 flash gratuit) ; provider `google` avec `{env:GEMINI_API_KEY}` dans `opencode.jsonc` ; clé enregistrée variable utilisateur (SetEnvironmentVariable) ; appel Gemini testé OK — **redémarrage opencode requis** pour activer |
+| **Sécurité clés** | ✅ Gemini + OpenRouter absentes : historique git complet `connect` (public) et `houetor` (privé), recherche GitHub repo + mondiale 0 résultat, `.env.learning` jamais commité |
 | Env de test | ✅ Propre (page 2 = 5 blocs, md5 d'origine `592dfd9742814297172c5f516bcd40e3`), serveur :8888 WSL actif, plugin 2.4.0 actif |
 
-**Découvertes Phase 3** :
-- Le bloc natif #1 de la page 2 est un `core/quote` avec blocs imbriqués → refusé par design (message « blocs imbriqués ») : les scénarios ciblent le bloc #0 (paragraph). Comportement attendu.
-- Restauration d'un bloc via update/batch → `wp_kses_post` reformate l'innerHTML (md5 différent) ; la restauration EXACTE se fait par restauration de révision (wp eval-file).
-- Le journal d'audit est en TABLE (`wp_houetor_connect_actions_log` : action_type, before_json, after_json, created_at) — pas une option.
+**Découvertes session** :
+- `/inject` du plugin accepte `position` = `prepend|append|replace` (défaut append) — PAS start/end (réservés à `create_block`) ; `module` obligatoire.
+- Le repo prod `Pictures\Screenshots\houetor` est un repo git privé `bolouvipf/houetor` (pas `connect`) — prod MCP : 21 tools, dispatch 966 lignes, aucun CRUD bloc.
+- `gh search code` : 0 résultat pour fragments de 28 caractères des 2 clés (recherche repo + mondiale).
 
-**Pour reprendre** : AGENTS.md auto-chargé au démarrage. Lire `ONBOARDING.md` (§1-8) puis `docs-learning/LEARNING_STATE.md` puis `EXPERIMENTS_LOG.md` Exp 011. **Rappel d'objectif** : chaque demande CRUD d'un utilisateur doit s'exécuter sans erreur (contrat de qualité détaillé en ONBOARDING §1). **Prochaine action : Phase 4 restante** — le portage des tools vers `app/mcp/` en production nécessite un choix utilisateur (accès au repo prod `Pictures\Screenshots\houetor` + token Supabase `connected_sites`) ; sinon, évolutions roadmap block-mcp (ops structurelles, compte agent WP moindre privilège, tier policy, PHPUnit, auto-transforms).
+**Pour reprendre** : AGENTS.md auto-chargé au démarrage. Lire `ONBOARDING.md` (§1-8) puis `docs-learning/LEARNING_STATE.md` puis `EXPERIMENTS_LOG.md` Exp 011. **Rappel d'objectif** : chaque demande CRUD d'un utilisateur doit s'exécuter sans erreur (contrat de qualité détaillé en ONBOARDING §1). **Prochaine action : déploiement Phase 4** — après validation utilisateur, copier `houetor-mcp/portage-app-mcp/src/*.ts` vers `app/mcp/` du repo prod, `npx tsc --noEmit` + `npm run lint`, commit dédié ; sinon évolutions roadmap block-mcp (ops structurelles, compte agent WP moindre privilège, tier policy, PHPUnit, auto-transforms).
 
 **Commandes MCP utiles** (dans WSL, depuis `houetor-mcp/`) :
 ```bash

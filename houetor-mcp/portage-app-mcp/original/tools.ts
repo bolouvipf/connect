@@ -1,0 +1,208 @@
+export interface HWToolParam {
+  type: string
+  required: boolean
+  description: string
+}
+
+export interface HWTool {
+  name: string
+  description: string
+  profiles: string[]
+  params: Record<string, HWToolParam>
+}
+
+export const HWT_TOOLS: HWTool[] = [
+  {
+    name: 'create_annonce',
+    description: 'Créer une nouvelle annonce',
+    profiles: ['ONG', 'BOUTIQUE', 'CM', 'MARKETING'],
+    params: {
+      titre: { type: 'string', required: true, description: 'Titre de l\'annonce' },
+      contenu: { type: 'string', required: true, description: 'Contenu de l\'annonce' },
+      statut: { type: 'string', required: false, description: 'brouillon | publiee' },
+    },
+  },
+  {
+    name: 'update_annonce',
+    description: 'Modifier une annonce existante',
+    profiles: ['ONG', 'BOUTIQUE', 'CM', 'MARKETING'],
+    params: {
+      id: { type: 'string', required: true, description: 'ID de l\'annonce' },
+      titre: { type: 'string', required: false, description: 'Nouveau titre' },
+      contenu: { type: 'string', required: false, description: 'Nouveau contenu' },
+      statut: { type: 'string', required: false, description: 'brouillon | publiee' },
+    },
+  },
+  {
+    name: 'delete_annonce',
+    description: 'Supprimer une annonce',
+    profiles: ['ONG', 'BOUTIQUE', 'CM', 'MARKETING'],
+    params: {
+      id: { type: 'string', required: true, description: 'ID de l\'annonce' },
+    },
+  },
+  {
+    name: 'list_contenu',
+    description: 'Lister le contenu du client (annonces, formations, posts, produits)',
+    profiles: ['ONG', 'BOUTIQUE', 'CM', 'MARKETING', 'COACH'],
+    params: {
+      type: { type: 'string', required: true, description: 'Type de contenu : annonces | formations | posts | produits | campagnes' },
+    },
+  },
+  {
+    name: 'create_formation',
+    description: 'Créer une nouvelle formation et l\'injecter dans WordPress',
+    profiles: ['COACH', 'MARKETING', 'ONG'],
+    params: {
+      titre: { type: 'string', required: true, description: 'Titre de la formation' },
+      description: { type: 'string', required: false, description: 'Description' },
+      prix: { type: 'number', required: false, description: 'Prix en FCFA' },
+      image_url: { type: 'string', required: false, description: 'URL de l\'image' },
+      site_id: { type: 'string', required: true, description: 'ID du site WordPress connecté (obtenu via list_connected_sites)' },
+      page_id: { type: 'string', required: true, description: 'ID de la page WordPress cible' },
+      position: { type: 'string', required: false, description: 'prepend | append (défaut: append)' },
+    },
+  },
+  {
+    name: 'update_formation',
+    description: 'Modifier une formation existante (resynchronise WordPress si le contenu change)',
+    profiles: ['COACH', 'MARKETING', 'ONG'],
+    params: {
+      id: { type: 'string', required: true, description: 'ID de la formation' },
+      titre: { type: 'string', required: false, description: 'Nouveau titre' },
+      description: { type: 'string', required: false, description: 'Nouvelle description' },
+      prix: { type: 'number', required: false, description: 'Nouveau prix' },
+      image_url: { type: 'string', required: false, description: 'Nouvelle URL d\'image' },
+    },
+  },
+  {
+    name: 'delete_formation',
+    description: 'Supprimer une formation (retire d\'abord le bloc WordPress, puis supprime la ligne Supabase)',
+    profiles: ['COACH', 'MARKETING', 'ONG'],
+    params: {
+      id: { type: 'string', required: true, description: 'ID de la formation' },
+    },
+  },
+  {
+    name: 'create_produit',
+    description: 'Créer un nouveau produit et l\'injecter dans WordPress',
+    profiles: ['BOUTIQUE', 'MARKETING', 'ONG'],
+    params: {
+      nom: { type: 'string', required: true, description: 'Nom du produit' },
+      description: { type: 'string', required: false, description: 'Description du produit' },
+      prix: { type: 'number', required: false, description: 'Prix en FCFA' },
+      image_url: { type: 'string', required: false, description: 'URL de l\'image' },
+      site_id: { type: 'string', required: true, description: 'ID du site WordPress connecté (obtenu via list_connected_sites)' },
+      page_id: { type: 'string', required: true, description: 'ID de la page WordPress cible' },
+      position: { type: 'string', required: false, description: 'prepend | append (défaut: append)' },
+    },
+  },
+  {
+    name: 'update_produit',
+    description: 'Modifier un produit existant (resynchronise WordPress si le contenu change)',
+    profiles: ['BOUTIQUE', 'MARKETING', 'ONG'],
+    params: {
+      produit_id: { type: 'string', required: true, description: 'ID du produit' },
+      nom: { type: 'string', required: false, description: 'Nouveau nom' },
+      description: { type: 'string', required: false, description: 'Nouvelle description' },
+      prix: { type: 'number', required: false, description: 'Nouveau prix' },
+      image_url: { type: 'string', required: false, description: 'Nouvelle URL d\'image' },
+    },
+  },
+  {
+    name: 'delete_produit',
+    description: 'Supprimer un produit (retire d\'abord le bloc WordPress, puis supprime la ligne Supabase)',
+    profiles: ['BOUTIQUE', 'MARKETING', 'ONG'],
+    params: {
+      produit_id: { type: 'string', required: true, description: 'ID du produit' },
+    },
+  },
+  {
+    name: 'get_wp_pages',
+    description: 'Récupérer la liste des pages WordPress du site connecté',
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {},
+  },
+  {
+    name: 'inject_page',
+    description: 'Injecter du contenu HTML dans une page WordPress',
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {
+      site_id: { type: 'string', required: true, description: 'ID du site connecté (obtenu via list_connected_sites)' },
+      page_id: { type: 'string', required: true, description: 'ID de la page WordPress' },
+      html: { type: 'string', required: true, description: 'Contenu HTML Gutenberg à injecter' },
+      module: { type: 'string', required: false, description: 'Module HOUETOR (annonces, produits, formations, custom)' },
+      annonce_id: { type: 'string', required: false, description: 'ID de l\'annonce (stocke la traçabilité WordPress sur l\'annonce)' },
+    },
+  },
+  {
+    name: 'get_wp_menus',
+    description: 'Récupérer la liste des menus WordPress',
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {},
+  },
+  {
+    name: 'list_connected_sites',
+    description: 'Lister les sites WordPress connectés au compte',
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {},
+  },
+  {
+    name: 'export_to_wordpress',
+    description: 'Exporter du contenu vers WordPress (avec upload d\'images)',
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {
+      site_id: { type: 'string', required: true, description: 'ID du site connecté' },
+      page_id: { type: 'string', required: true, description: 'ID de la page WordPress cible' },
+      html: { type: 'string', required: true, description: 'Contenu HTML Gutenberg complet' },
+      images: { type: 'array', required: false, description: 'URLs d\'images à uploader vers la médiathèque WP' },
+      annonce_id: { type: 'string', required: false, description: 'ID de l\'annonce (stocke la traçabilité WordPress sur l\'annonce)' },
+    },
+  },
+  {
+    name: 'get_profil',
+    description: 'Obtenir les informations du profil client',
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {},
+  },
+  {
+    name: 'update_profil',
+    description: 'Mettre à jour les informations du profil',
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {
+      full_name: { type: 'string', required: false, description: 'Nom complet' },
+      company: { type: 'string', required: false, description: 'Organisation / Entreprise' },
+      phone: { type: 'string', required: false, description: 'Téléphone' },
+    },
+  },
+  {
+    name: 'get_stats',
+    description: 'Obtenir les statistiques du compte',
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {},
+  },
+  {
+    name: 'list_commandes',
+    description: 'Lister les commandes',
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {},
+  },
+  {
+    name: 'update_commande',
+    description: 'Mettre à jour le statut d\'une commande',
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {
+      id: { type: 'string', required: true, description: 'ID de la commande' },
+      statut: { type: 'string', required: true, description: 'Nouveau statut : en_attente | confirmee | expediee | livree | annulee' },
+    },
+  },
+  {
+    name: 'send_notification',
+    description: 'Envoyer une notification au client (email)',
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {
+      sujet: { type: 'string', required: true, description: 'Sujet de la notification' },
+      message: { type: 'string', required: true, description: 'Corps du message' },
+    },
+  },
+]
