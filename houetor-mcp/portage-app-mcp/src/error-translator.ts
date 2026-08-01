@@ -1,7 +1,8 @@
 // Traduction des erreurs REST houetor-connect en messages actionnables pour l'agent.
-// Portage direct de houetor-mcp/src/error-translator.ts (v2.4.0, testé dans le lab).
+// Portage direct de houetor-mcp/src/error-translator.ts (v2.6.0, testé dans le lab).
 // Codes observés dans le lab (série V2) : 401 unauthorized, 404 anchor_not_found/block_not_found,
-// 409 error_conflict (CAS), 429 rate_limited (10 écritures/60s par page), 400 validation.
+// 409 error_conflict (CAS), 429 rate_limited (10 écritures/60s par page), 400 validation,
+// 400 block_legacy (tier policy : bloc obsolète refusé à la création + suggestion).
 
 export interface TranslatedError {
   status: number
@@ -50,6 +51,19 @@ export function translateError(status: number, data: any, fallback: string): Tra
       message:
         `Cible introuvable (${raw}). Relisez la page (get_page_blocks) : les refs HWC et index ` +
         `de la page ont peut-être changé depuis votre dernière lecture.`,
+    }
+  }
+
+  if (status === 400 && code === 'block_legacy') {
+    const blockName = typeof data?.data?.block_name === 'string' ? data.data.block_name : ''
+    const suggested = typeof data?.data?.suggested_block === 'string' ? data.data.suggested_block : ''
+    return {
+      status,
+      code,
+      message:
+        `Bloc "${blockName}" refusé par la tier policy (obsolète ou non supporté à la création) : ` +
+        `${raw} Recréez le bloc avec "${suggested}" à la place (même contenu, type supporté) ` +
+        `pour exécuter la demande sans erreur.`,
     }
   }
 

@@ -8,11 +8,13 @@ import { translateError } from './error-translator.js'
 export class WordPressClientError extends Error {
   status: number
   code: string
+  data?: any
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, data?: any) {
     super(message)
     this.status = status
     this.code = code
+    this.data = data
   }
 }
 
@@ -52,7 +54,7 @@ export class WordPressClient {
 
     if (!res.ok) {
       const t = translateError(res.status, data, res.statusText)
-      throw new WordPressClientError(t.status, t.code, t.message)
+      throw new WordPressClientError(t.status, t.code, t.message, data?.data ?? undefined)
     }
 
     return { status: res.status, data: data as T }

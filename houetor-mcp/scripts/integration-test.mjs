@@ -106,6 +106,26 @@ server.listen(PORT, async () => {
     const tfMediaBody = await tfMedia.json()
     check('transform cible media (dry_run) → 400 traduit', tfMedia.status === 400, tfMediaBody.error?.message ?? '')
 
+    // ---- v2.6.0 : tier policy — bloc legacy refusé à la création avec suggestion (dry_run, budget intact) ----
+    const legacyRes = await rpc('create_block', {
+      page_id: '2',
+      block_name: 'core/verse',
+      content: 'Le vers reste un vers',
+      module: 'test',
+      dry_run: true,
+    })
+    const legacyBody = await legacyRes.json()
+    check(
+      'create_block core/verse (dry_run) → 400 block_legacy traduit avec suggestion',
+      legacyRes.status === 400 &&
+        legacyBody.error?.data?.code === 'block_legacy' &&
+        legacyBody.error?.data?.data?.suggested_block === 'core/preformatted' &&
+        legacyBody.error?.message?.includes('core/preformatted'),
+      legacyBody.error?.message ?? '',
+    )
+    const blocksLegacy = (await (await rpc('get_page_blocks', { page_id: '2' })).json()).result?.data?.blocks ?? []
+    check('tier policy: aucun bloc créé (page inchangée)', blocksLegacy.length === blocksTf.length)
+
     const tfBack = await rpc('transform_block', {
       page_id: '2',
       ref,

@@ -89,6 +89,35 @@ server.listen(PORT, async () => {
     const afterS7 = await getPage('2')
     check('S7 relecture : bloc A est core/heading (ref conservée)', afterS7.blocks.find((b) => b.ref === refA)?.blockName === 'core/heading')
 
+    // ===== S8 — « Ajoute un bloc poème (verse) » : tier policy → l'agent corrige avec la suggestion =====
+    const s8 = await rpc('create_block', {
+      page_id: '2',
+      block_name: 'core/verse',
+      content: 'Rose, un vers',
+      module: 'client',
+      dry_run: true,
+    })
+    const s8Body = await s8.json()
+    check(
+      'S8 bloc legacy demandé → 400 block_legacy traduit avec suggestion',
+      s8.status === 400 &&
+        s8Body.error?.data?.code === 'block_legacy' &&
+        s8Body.error?.data?.data?.suggested_block === 'core/preformatted' &&
+        s8Body.error?.message?.includes('core/preformatted'),
+      s8Body.error?.message ?? '',
+    )
+    const s8Fix = await rpc('create_block', {
+      page_id: '2',
+      block_name: 'core/preformatted',
+      content: 'Rose, un vers',
+      module: 'client',
+      dry_run: true,
+    })
+    const s8FixBody = await s8Fix.json()
+    check('S8 l\u2019agent applique la suggestion (dry_run) → succès', s8Fix.status === 200 && s8FixBody.result?.data?.dry_run === true, s8FixBody.error?.message ?? '')
+    const afterS8 = await getPage('2')
+    check('S8 aucun bloc créé (les deux appels en dry_run)', afterS8.content_md5 === afterS7.content_md5)
+
     // ===== S3 — « Fais une répétition générale avant de publier (dry_run) » =====
     const s3 = await rpc('update_block_content', {
       page_id: '2',

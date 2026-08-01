@@ -53,6 +53,17 @@ describe('translateError', () => {
     expect(t.message).toContain('HOUETOR_TOKEN')
   })
 
+  it('tier policy 400 block_legacy → conseil de remplacement', () => {
+    const t = translateError(400, {
+      code: 'block_legacy',
+      message: 'Bloc core/verse obsolète ou non supporté à la création. Utilisez core/preformatted à la place.',
+      data: { status: 400, block_name: 'core/verse', suggested_block: 'core/preformatted' },
+    }, 'fallback')
+    expect(t.code).toBe('block_legacy')
+    expect(t.message).toContain('core/verse')
+    expect(t.message).toContain('core/preformatted')
+  })
+
   it('reste fidèle au message brut sinon', () => {
     const t = translateError(400, { code: 'validation_error', message: 'champ invalide' }, 'fallback')
     expect(t.message).toBe('champ invalide')

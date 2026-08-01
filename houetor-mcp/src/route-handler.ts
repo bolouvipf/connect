@@ -123,7 +123,11 @@ export async function handleRequest(
           error: {
             code: err.status >= 500 ? -32003 : -32002,
             message: err.message,
-            data: { status: err.status, code: err.code },
+            data: {
+              status: err.status,
+              code: err.code,
+              ...(err.data && typeof err.data === 'object' ? { data: err.data } : {}),
+            },
           },
         }),
         { status: err.status >= 500 ? 502 : err.status, headers: { 'content-type': 'application/json' } },

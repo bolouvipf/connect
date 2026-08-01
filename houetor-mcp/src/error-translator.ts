@@ -52,5 +52,18 @@ export function translateError(status: number, data: any, fallback: string): Tra
     }
   }
 
+  if (status === 400 && code === 'block_legacy') {
+    const blockName = typeof data?.data?.block_name === 'string' ? data.data.block_name : ''
+    const suggested = typeof data?.data?.suggested_block === 'string' ? data.data.suggested_block : ''
+    return {
+      status,
+      code,
+      message:
+        `Bloc "${blockName}" refusé par la tier policy (obsolète ou non supporté à la création) : ` +
+        `${raw} Recréez le bloc avec "${suggested}" à la place (même contenu, type supporté) ` +
+        `pour exécuter la demande sans erreur.`,
+    }
+  }
+
   return { status, code, message: `${raw}` }
 }

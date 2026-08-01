@@ -11,9 +11,10 @@ traduites en conseils actionnables pour que l'agent reparte du bon pied au lieu 
 La preuve de ce contrat : les scénarios utilisateur « exaucés exactement » (26/26 PASS, Phase 3).
 
 Serveur MCP (Model Context Protocol) qui pilote le plugin WordPress **houetor-connect**
-(v2.5.0 : CRUD de blocs avec refs HWC, CAS `expected_hash`, rate limit, audit log avec
+(v2.6.0 : CRUD de blocs avec refs HWC, CAS `expected_hash`, rate limit, audit log avec
 rétention configurable, révisions, batch atomique `update_blocks`, `dry_run`,
-transformation de blocs `transform_block`).
+transformation de blocs `transform_block`, **tier policy** : blocs legacy refusés à la
+création avec remplacement suggéré — erreur `block_legacy` traduite en conseil actionnable).
 
 Il reproduit **à l'identique** le protocole du serveur MCP de production
 (`app/mcp/` du projet Next HOUETOR : JSON-RPC 2.0 en HTTP + listing SSE, auth `X-HWT-Token`)
@@ -117,3 +118,4 @@ passer ce hash en `expected_hash`, puis **relire pour confirmer**.
 - 2.3.0 : miroir protocole + tools bloc v2.3.0 (en lockstep avec le plugin `houetor-connect`).
 - 2.4.0 : batch atomique `update_blocks` + `dry_run` sur toutes les écritures (plugin et MCP en lockstep) ; mapping `inject_page` aligné sur la prod (`html` → `content`) ; scénarios utilisateur Phase 3 (24/24 PASS).
 - 2.5.0 : `transform_block` (conversion entre blocs de texte, ref conservée) + rétention du journal d'audit (option `hwc_audit_retention_days`, CRON quotidien) ; unitaires 29/29, intégration 33/33, scénarios 26/26.
+- 2.6.0 : **tier policy** — erreur `block_legacy` (400) traduite avec le bloc suggéré (`data.data.suggested_block` propagé par le route-handler) ; scénario S8 « bloc poème demandé → refus actionnable → l'agent applique la suggestion » ; unitaires 30/30, intégration 35/35, scénarios 29/29.
