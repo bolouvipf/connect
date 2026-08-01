@@ -115,3 +115,29 @@ Voir historique : 18 tests (auth 403, parsing, create positionnel, PATCH, révis
 - Intégration : transform paragraph→heading (CAS chaîné après écritures), CAS périmé **en dry_run** → 409 traduit (le refus CAS précède le dry_run côté plugin), cible media en dry_run → 400 traduit, retour heading→paragraph.
 - Scénario **S7** « Transforme le bloc avantage en titre » : `transform_block` → 200, relecture confirme `core/heading`, ref conservée → PASS ; SSE liste `transform_block`.
 - Découverte : le rate limit compte toutes les tentatives (400/409) → reset `delete_transient('hwc_ratelimit_2')` entre batteries ; budget intégration = 10 écritures exactement.
+
+## T-SERIE 005 — Plugin 2.6.0 : tier policy (refus blocs legacy + suggestion) — 2026-08-01
+
+**Méthode :** batterie plugin `rest-test-tierpolicy.php` (11 tests) + régression V3 + suite `mirror-suite.sh` (miroir MCP).
+
+### Batterie tier policy — `rest-test-tierpolicy.php` : **11/11 PASS**
+
+**T-1 — `core/verse` (legacy) → 400 `block_legacy` + suggestion**
+```json
+{"code":"block_legacy","message":"Bloc core/verse obsolète ou non supporté à la création. Utilisez core/preformatted à la place (même contenu, bloc supporté).","data":{"status":400,"block_name":"core/verse","suggested_block":"core/preformatted"}}
+```
+→ aucune écriture, aucune révision, aucun audit `create_block`.
+
+**T-2 — `core/cover-image` (renommé) → 400 `block_legacy` + `suggested_block=core/cover` → PASS**
+**T-3 — `core/nimporte-quoi` (hors map) → 400 `create_failed` + message « Type de bloc non supporté », SANS suggestion → PASS** (refus générique conservé)
+**T-4 — dry_run sur `core/html` → 400 `block_legacy` + `core/paragraph`, aucun effet → PASS**
+**T-5 — filtre `hwc_legacy_blocks` : entrée custom `core/custom-legacy`→`core/list` testée, puis retrait du filtre → refus générique → PASS**
+**T-6 — `core/list` (ALLOWED) → 201 + ref `tplab-…` → PASS** (régression positive)
+**T-7 — audit `create_block` : aucune ligne pour les échecs (compteur = +1 seulement pour la création OK) → PASS**
+
+### Régression — `rest-test-v3.php` : **32/32 PASS** (aucun endpoint existant modifié)
+
+### Miroir MCP — suite `mirror-suite.sh` : **30 unitaires / 35 intégration / 29 scénarios PASS**
+- Intégration : `create_block core/verse` **en dry_run** → 400 traduit « Recréez le bloc avec "core/preformatted" à la place… », `error.data.data.suggested_block` propagé (route-handler reflète les data REST) ; aucun bloc créé.
+- Scénario **S8** « Ajoute un bloc poème (verse) » : refus `block_legacy` traduit avec suggestion → l'agent (simulé) applique la suggestion (`core/preformatted`, dry_run) → succès → aucun bloc créé → PASS (contrat « la demande s'exécute sans erreur » : l'erreur est actionnable).
+- Découverte : en dry_run, le refus tier policy (400) ne consomme PAS le budget rate limit (check_rate_limit sauté en dry_run, refus whitelist avant écriture).

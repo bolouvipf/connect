@@ -95,3 +95,20 @@ Format : objectif / commandes exécutées / résultat brut.
 - Windows→WSL : les junctions/reparse points ne se résolvent pas pour `tsc` sous WSL (baseUrl Windows) — lancer le typecheck du portage depuis Windows.
 
 **Scores finaux** : plugin — V3 32/32, rétention 9/9, transform 21/21 ; miroir — unitaires 29/29, intégration 33/33, scénarios 26/26 (suite `mirror-suite.sh` entièrement verte).
+
+## Exp 013 — Évolution roadmap : tier policy (refus blocs legacy + suggestion), plugin+MCP 2.6.0 (2026-08-01)
+
+**Contexte** : utilisateur choisit « Évolutions roadmap block-mcp » puis l'option « Tier policy (refus blocs legacy) » — montée 2.6.0 à risque minimisé, calquée sur l'Exp 012 (étapes A→D, cloisonnement strict). Idée source (Exp 008) : « blocs legacy rejetés à l'insertion + map de remplacement suggérée » — l'erreur devient actionnable : l'agent recrée le bloc avec la suggestion au lieu de bloquer sur un refus muet.
+
+**Ce qui a été fait** :
+- **Étape A — Plugin** : `HWC_Block_Editor::LEGACY_BLOCKS` (21 entrées : blocs obsolètes/renommés/retirés → suggestion dans ALLOWED_BLOCKS, ex `core/cover-image`→`core/cover`, `core/verse`→`core/preformatted`, `core/html`→`core/paragraph`, `core/social-links`→`core/buttons`) + `legacy_suggestion()` (filtre `hwc_legacy_blocks` personnalisable) ; `create_block` refusé legacy → `['error' => 'legacy', 'suggested_block' => …]` ; handler REST `create_block` → **WP_Error `block_legacy` (400) avec data `block_name` + `suggested_block`**. Aucun endpoint existant modifié (refus générique `create_failed` conservé pour les blocs hors map).
+- **Étape B — Tests** : `rest-test-tierpolicy.php` **11/11 PASS** (T1 verse→preformatted, T2 cover-image→cover, T3 inconnu→create_failed générique, T4 dry_run legacy→400 sans écriture, T5 filtre custom + retrait, T6 ALLOWED→201, T7 aucun audit sur échecs, T8 cleanup) ; **régression V3 32/32 PASS**.
+- **Étape C — Miroir MCP** : `error-translator.ts` cas `400 block_legacy` → message « Recréez le bloc avec "X" à la place… » ; `WordPressClientError` propage désormais `data` REST et `route-handler.ts` les reflète dans `error.data.data` (utile au portage prod) ; test unitaire + test intégration (create legacy **en dry_run** → 400 traduit, budget rate limit intact : le refus tier policy précède le dry_run mais le rate limit n'est pas consommé en dry_run) + scénario **S8** (« Ajoute un bloc poème » → refus traduit → l'agent applique la suggestion → succès en dry_run).
+- **Étape D — Lockstep 2.6.0** : header plugin + `HWC_VERSION` + **stable tag readme.txt 2.4.0 → 2.6.0 (dérive corrigée de la montée 2.5.0)** + package.json MCP ; portage `portage-app-mcp/src/error-translator.ts` enrichi (typecheck **0 erreur** via tsc Windows) ; zip reconstruit (git archive sans prefix) ; docs (Exp 013, série 005, LEARNING_STATE, ONBOARDING, AGENTS, README MCP).
+
+**Scores finaux** : plugin — tier policy 11/11, V3 32/32 ; miroir — unitaires **30/30**, intégration **35/35**, scénarios **29/29** (S8 inclus) ; portage — typecheck 0 erreur.
+
+**Découvertes** :
+- En dry_run, le refus tier policy (400) est renvoyé SANS consommer le budget rate limit (le `check_rate_limit` est sauté en dry_run ; le refus whitelist précède l'écriture) — même patron que la découverte Exp 011 (refus CAS avant dry_run).
+- Le stable tag readme.txt était resté en 2.4.0 lors de la montée 2.5.0 (dérive silencieuse du bug #1) — corrigé en 2.6.0.
+- `sed` multi-guillemets sous PowerShell→WSL échoue : passer par l'édition de fichier directe.
