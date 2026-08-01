@@ -1,7 +1,8 @@
 # @houetor/connect-mcp — Miroir lab du serveur MCP HOUETOR
 
 Serveur MCP (Model Context Protocol) qui pilote le plugin WordPress **houetor-connect**
-(v2.3.0 : CRUD de blocs avec refs HWC, CAS `expected_hash`, rate limit, audit log, révisions).
+(v2.4.0 : CRUD de blocs avec refs HWC, CAS `expected_hash`, rate limit, audit log, révisions,
+batch atomique `update_blocks`, `dry_run`).
 
 Il reproduit **à l'identique** le protocole du serveur MCP de production
 (`app/mcp/` du projet Next HOUETOR : JSON-RPC 2.0 en HTTP + listing SSE, auth `X-HWT-Token`)
@@ -26,11 +27,16 @@ WP + blocs (tous profils) :
 - `get_page_blocks` — structure de blocs d'une page (`blockName`, `content`, `ref`, `content_md5`)
 - `inject_page` — injection HTML (position, module, CAS)
 - `uninject_page` — retrait par module + block_id
-- `create_block` — création (position start/end/before/after, `anchor_ref`/`anchor_index`, module → ref)
-- `update_block_content` — modification par `ref` (prioritaire) ou `block_index`, CAS
-- `delete_block` — suppression par `ref` ou `block_index`, CAS
+- `create_block` — création (position start/end/before/after, `anchor_ref`/`anchor_index`, module → ref, `dry_run`)
+- `update_block_content` — modification par `ref` (prioritaire) ou `block_index`, CAS, `dry_run`
+- `update_blocks` — **batch atomique** : plusieurs updates (par `ref` ou `block_index`) en UNE révision, all-or-nothing, max 50 par appel, compte 1 écriture rate limit, `dry_run`
+- `delete_block` — suppression par `ref` ou `block_index`, CAS, `dry_run`
 - `export_to_wordpress` — injection complète (module obligatoire)
 - `list_connected_sites` — site configuré par env (équivalent lab de la table Supabase)
+
+`dry_run: true` (sur toutes les écritures) valide sans rien écrire : aucune écriture, aucune
+révision, aucun audit, aucun rate limit consommé — parfait pour une « répétition générale »
+avant publication.
 
 Les messages d'erreur 409/429/404/401 sont traduits en conseils concrets
 (« relisez la page via `get_page_blocks` pour un `expected_hash` frais », « attendez ~60 s »…).
@@ -54,9 +60,14 @@ npm start                   # ou WORDPRESS_URL=... HOUETOR_TOKEN=... npm start
 ## Tests
 
 ```bash
-npm test                    # 18 tests unitaires (Vitest, fetch mocké)
-npm run test:integration    # 16 tests vs le WordPress lab (À EXÉCUTER DANS WSL, où :8888 est joignable)
+npm test                    # 24 tests unitaires (Vitest, fetch mocké)
+npm run test:integration    # 28 tests vs le WordPress lab (À EXÉCUTER DANS WSL, où :8888 est joignable)
+node scripts/scenarios-test.mjs   # 24 scénarios utilisateur « exaucés exactement » via le MCP (Phase 3)
 ```
+
+Prérequis scénarios : `wp option delete _transient_hwc_ratelimit_2` avant le run (budget
+10 écritures/60s par page), puis restauration de la page via révision en post-run
+(`scripts/restore-page2.php`).
 
 ## Exemple d'appel
 
@@ -66,6 +77,18 @@ curl -X POST http://localhost:8890/mcp \
   -H 'X-HWT-Token: HWT-ONG-123e4567-e89b-12d3-a456-426614174000' \
   -d '{"jsonrpc":"2.0","id":1,"method":"get_page_blocks","params":{"page_id":"2"}}'
 ```
+
+## Exemples de scénarios agent (testés en Phase 3)
+
+Le pattern gagnant : **toujours relire avant d'écrire** (`get_page_blocks` fournit `content_md5`),
+passer ce hash en `expected_hash`, puis **relire pour confirmer**.
+
+1. « Ajoute un bloc avant le pied de page » → `create_block` (`position:before`, `anchor_index`).
+2. « Corrige un texte » → `get_page_blocks` → `update_block_content` (`ref` ou `block_index` + `expected_hash`).
+3. « Répétition générale avant de publier » → `dry_run:true`, vérifier `dry_run:true` + md5 inchangé, puis rejouer sans dry_run.
+4. « Fais ces N corrections en une fois » → `update_blocks` (array d'updates, 1 révision, all-or-nothing).
+5. « Supprime l'ancienne offre » → `delete_block` par `ref`.
+6. « Conflit : un autre agent a modifié la page » → le 409 traduit dit de relire ; relire, repasser le hash frais, réécrire.
 
 ## Portage vers la prod (`app/mcp/`)
 
@@ -79,4 +102,4 @@ curl -X POST http://localhost:8890/mcp \
 ## Versions
 
 - 2.3.0 : miroir protocole + tools bloc v2.3.0 (en lockstep avec le plugin `houetor-connect`).
-- 2.4.0 (à venir) : batch atomique `update_blocks` + `dry_run` côté plugin, exposés ici.
+- 2.4.0 : batch atomique `update_blocks` + `dry_run` sur toutes les écritures (plugin et MCP en lockstep) ; mapping `inject_page` aligné sur la prod (`html` → `content`) ; scénarios utilisateur Phase 3 (24/24 PASS).

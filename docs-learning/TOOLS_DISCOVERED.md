@@ -59,3 +59,33 @@ Voir historique : 18 tests (auth 403, parsing, create positionnel, PATCH, révis
 ## Tests à venir
 - Tests HTTP complets (curl depuis Windows → en attente du pare-feu Hyper-V, non bloquant : tests via dispatch internes équivalents)
 - Non-régression /inject /uninject (routes intactes)
+
+## T-SERIE 003 — Scénarios « exaucés exactement » via le MCP miroir (Phase 3) — 2026-08-01
+
+**Méthode :** `node scripts/scenarios-test.mjs` (JSON-RPC HTTP vers le MCP lab :8892, qui appelle le WP lab :8888). Chaque scénario = demande utilisateur réaliste : relecture → écriture → vérification.
+
+**Résultat : 24/24 PASS** (preuve brute dans le run, extraits ci-dessous).
+
+**S1 « Ajoute un bloc avantage juste avant le pied de page »** : `create_block` position=before anchor_index → 200 + ref, bloc visible en avant-dernière position → PASS
+**S2 « Corrige le prix dans le bloc annonce »** : `update_block_content` par index avec expected_hash frais → 200, relecture confirme « 99 € » → PASS
+**S3 « Fais une répétition générale avant de publier »** : `dry_run:true` → `dry_run:true`, md5 inchangé, bloc A intact → PASS
+**S4 « Fais ces deux corrections en une seule fois »** : `update_blocks` batch count=2, relecture confirme les 2 corrections → PASS
+**S5 « Supprime l'ancienne offre »** : `delete_block` par ref → 200, relecture confirme disparition → PASS
+**S6 « Un autre agent a modifié la page »** : écriture concurrente puis update avec hash périmé → **409 traduit** (« Re-lisez la page (get_page_blocks…) pour obtenir un expected_hash à jour »), l'écriture périmée n'a PAS écrasé, relecture + hash frais → 200 → PASS
+**SSE** : `update_blocks` listé dans les tools → PASS
+
+**Preuves plugin (audit + révisions)** — 6 dernières lignes du journal `houetor_connect_actions_log` :
+```
+162 [batch_update_blocks] 07:55:09 before={"page_id":2,"count":1,"content_md5":"5756ab…"} | after={"page_id":2,"count":1,"content_md5":"00b3f0…"}
+161 [delete_block] 07:54:55 before={"page_id":2,"block_index":null,"ref":"autre-agent-1ac982381501",…} | after={"page_id":2,"content_md5":"5756ab…"}
+160 [update_block] 07:54:45 before={"page_id":2,"block_index":0,"ref":null,"content_md5":"136d4d…"} | after={"page_id":2,"content_md5":"95ec01…"}
+159 [create_block] 07:54:28 before={"page_id":2,"block_name":"core\/paragraph",…} | after={"page_id":2,"ref":"autre-agent-1ac982381501",…}
+```
+- Révisions page 2 présentes (chaque écriture réelle → révision ; dry_run n'en crée aucune).
+- Total cumulé table : inject 100x, create_block 28x, update_block 10x, delete_block 14x, batch_update_blocks 10x (historique lab complet).
+
+**Nettoyage post-test** : page 2 restaurée (md5 d'origine `592dfd9742814297172c5f516bcd40e3` via révision), rate limit reset.
+
+**Découvertes** :
+- Le bloc natif #1 de la page 2 est un `core/quote` avec blocs imbriqués → refusé par design (« blocs imbriqués ») : le scénario cible le bloc #0 (paragraph). Comportement attendu et déjà couvert par V3-6.
+- La restauration d'un bloc via `update_block_content`/batch repasse par `wp_kses_post` → sérialisation reformatée (md5 différent du contenu d'origine) ; la restauration EXACTE se fait par restauration de révision (wp eval-file).
