@@ -98,7 +98,7 @@ Le lab `houetor-mcp/` est un **miroir testé** du MCP : mêmes patterns (route/t
 | **Phase 4 mission — portage `app/mcp/` (dans le lab)** | ✅ `houetor-mcp/portage-app-mcp/` : `original/` (copie brute prod) + `src/` (error-translator.ts + tools.ts +6 tools & inject étendu + dispatch.ts +6 méthodes & helpers resolveSite/pluginRequest + ALLOWED_METHODS) — **typecheck `npx tsc --noEmit` 0 erreur vs types réels prod** (junction node_modules + tsconfig `@/*` → repo prod) ; `route.ts`/`parser.ts` inchangés ; **déploiement dans le repo prod EN ATTENTE de validation utilisateur** (prérequis plugin clients ≥ 2.3.0 / 2.4.0 pour batch+dry_run) |
 | **Agents opencode (globaux)** | ✅ `~/.config/opencode/agents/analyste.md` + `relecteur.md` (mode subagent, Gemini 3.6 flash gratuit) ; provider `google` avec `{env:GEMINI_API_KEY}` dans `opencode.jsonc` ; clé enregistrée variable utilisateur (SetEnvironmentVariable) ; appel Gemini testé OK — **redémarrage opencode requis** pour activer |
 | **Sécurité clés** | ✅ Gemini + OpenRouter absentes : historique git complet `connect` (public) et `houetor` (privé), recherche GitHub repo + mondiale 0 résultat, `.env.learning` jamais commité |
-| Env de test | ✅ Propre (page 2 = 5 blocs, md5 d'origine `592dfd9742814297172c5f516bcd40e3`), serveur :8888 WSL actif, plugin 2.4.0 actif |
+| Env de test | ✅ Propre (page 2 = 5 blocs, md5 d'origine `592dfd9742814297172c5f516bcd40e3`), serveur :8888 WSL actif via **service systemd `wp-dev-server`** (auto-restart, survit aux redémarrages WSL), plugin 2.4.0 actif |
 
 **Découvertes session** :
 - `/inject` du plugin accepte `position` = `prepend|append|replace` (défaut append) — PAS start/end (réservés à `create_block`) ; `module` obligatoire.
@@ -109,10 +109,10 @@ Le lab `houetor-mcp/` est un **miroir testé** du MCP : mêmes patterns (route/t
 
 **Commandes MCP utiles** (dans WSL, depuis `houetor-mcp/`) :
 ```bash
-npm test                                    # 24 unitaires
-WORDPRESS_URL=http://localhost:8888 HOUETOR_TOKEN=<token> npm run test:integration   # 28 intégration
-WORDPRESS_URL=http://localhost:8888 HOUETOR_TOKEN=<token> node scripts/scenarios-test.mjs  # 24 scénarios Phase 3
+bash scripts/mirror-suite.sh        # suite complète: 24 unitaires + 28 intégration + 24 scénarios (lit le token seul, reset rate limit)
+npm test                            # 24 unitaires seuls
 ```
+Relance du serveur WP lab si tombé : `wsl -u root -e bash -c "systemctl restart wp-dev-server"` (service systemd créé le 2026-08-01 car `setsid nohup wp server` meurt avec la session WSL).
 
 **Fils ouverts à retenir** :
 1. Tests HTTP externes depuis Windows bloqués (pare-feu Hyper-V, pas admin) — non bloquant, équivalent interne OK.
