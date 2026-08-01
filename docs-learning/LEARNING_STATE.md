@@ -40,7 +40,10 @@ Mise à jour à chaque session. Checklist globale du Script 2.
 - [x] Kit de continuité : `ONBOARDING.md` + section Learning Lab dans `README.md`
 - [x] Clés Gemini + OpenRouter ajoutées à `.env.learning` (jamais commitées)
 - [x] Analyse de `block-mcp` (GravityKit) consignée — évolutions candidates identifiées (EXPERIMENTS_LOG Exp 008)
-- [ ] Prioriser avec l'utilisateur les évolutions inspirées de block-mcp (batch atomic, ops structurelles, compte agent WP, dry_run, tier policy, PHPUnit)
+- [x] Phase 1 mission MCP : miroir `houetor-mcp/` v2.3.0 construit + testé (18/18 unitaires, 16/16 intégration)
+- [x] Phase 2 mission : plugin+MCP 2.4.0 (batch `update_blocks` + `dry_run`) livré et testé (V3 32/32, régression 14/14, unitaires 24/24, intégration 28/28), commits `599f388`/`a76318a`/`3663900`
+- [ ] Phase 3 mission : scénarios « exaucés exactement » via le MCP miroir + README portage `app/mcp/`
+- [ ] Prioriser avec l'utilisateur les évolutions inspirées de block-mcp (ops structurelles, compte agent WP, tier policy, PHPUnit)
 - [ ] (En attente utilisateur) Audit de `houetor-selfhare`
 
 ## Rappels de procédure
@@ -80,36 +83,35 @@ Le lab `houetor-mcp/` est un **miroir testé** du MCP : mêmes patterns (route/t
 
 **Règles rappel** : jamais `main` ; `.env.learning` + token jamais commités (env vars du MCP : `WORDPRESS_URL`, `HOUETOR_TOKEN`) ; tests isolés avant affirmation ; `php -l` avant commit ; zip en `/`.
 
-## Point de reprise — Session 2026-07-31 (fin)
+## Point de reprise — Session 2026-08-01 (fin)
 
 **Tout est commité et pushé** (`opencode-learning` synchro avec origin, working tree propre).
 
 | Élément | État |
 |---|---|
-| **Phase 0 mission MCP** | ✅ Node v22.23.2 dans WSL (remplace 11.12.1) ; smoke tests OK (php -l 0 erreur, check-setup, permaliens corrigés → REST HTTP JSON fonctionnel) |
-| **Phase 1 — `houetor-mcp/` v2.3.0** | ✅ Construit + testé : 18/18 unitaires (Vitest), **16/16 intégration vs WP lab** (WSL) ; page 2 intacte (5 blocs, md5 d'origine) |
-| Chantier v2.3.0 (ref/CAS/rate limit/audit/révisions) | ✅ Livré + testé 14/14 + pushé (`a94b623`) |
-| Zip 2.3.0 reconstruit (chemins `/`) | ✅ Pushé (`3f17c06`) |
-| Kit de continuité ONBOARDING + README lab | ✅ Pushé (`6529067`) |
-| Analyse block-mcp (Exp 008) + roadmap évolutions | ✅ Consigné, à prioriser en séance |
-| Clés Gemini + OpenRouter | ✅ Dans `.env.learning` (local uniquement) |
-| Env de test | ✅ Propre (pages 2/3 restaurées), serveur :8888 WSL, WP 2.3.0 actif, permaliens pretty |
+| **Phase 2 mission — plugin 2.4.0** | ✅ Batch atomique `POST /blocks/batch-update` (N updates = 1 révision, all-or-nothing, max 50, 1 écriture rate limit) + `dry_run` sur toutes les écritures (aucune écriture/révision/audit/rate limit) — tests V3 **32/32 PASS** |
+| **Régression v2.3.0** | ✅ Série V2 **14/14 PASS** (après reset transients rate limit) |
+| **Phase 2 mission — MCP 2.4.0** | ✅ Tool `update_blocks` + dry_run sur 5 tools d'écriture — unitaires **24/24**, intégration **28/28** vs WP lab |
+| Bug latent corrigé | ✅ MCP `/inject` envoyait `html` au plugin qui attend `content` (la prod mappe `html`→`content`) — découvert par test d'intégration, corrigé dans `dispatch.ts` + `client.ts` |
+| **Livraison lockstep 2.4.0** | ✅ Commits `599f388` (plugin), `a76318a` (zip forward slashes), `3663900` (MCP) — pushés |
+| Env de test | ✅ Propre (page 2 = 5 blocs, md5 d'origine `592dfd9742814297172c5f516bcd40e3`), serveur :8888 WSL actif, plugin 2.4.0 actif |
 
-**Découvertes Exp 010 (session en cours)** :
-- Permaliens « plain » → `/wp-json/` renvoyait du HTML (301 + page) : corrigé avec `permalink_structure=/%postname%/` + rewrite flush. REST HTTP fonctionne maintenant (nécessaire pour le MCP).
-- Route `/page-blocks` = GET avec `page_id` en **query param** (pas en segment d'URL) ; ref générée = `{module}-{hash}` (ex: `test-7de7e65cf7d4`), PAS `HWC-` — module obligatoire pour avoir une ref.
-- `/pages` renvoie `id` **numérique** en JSON (les checks doivent faire `String(p.id)`).
+**Découvertes Exp 011 (session en cours)** :
+- Le plugin `/inject` attend `content` (pas `html`) — la prod mappe `html`→`content` côté MCP ; notre miroir l'a maintenant aligné.
+- Un `cp`/édition Windows avait converti 18 fichiers source en CRLF (diff fantôme sans contenu) → restaurés via `git checkout --` ; le diff réel ne concernait que les fichiers de session.
+- Git dans WSL commit sous identité `root` par défaut → configuré `user.name HOUETOR` / `user.email bopiflo05@gmail.com` + `--amend --reset-author` pour corriger.
 
-**Pour reprendre** : AGENTS.md auto-chargé au démarrage. Lire `ONBOARDING.md` (§1-8) puis `docs-learning/LEARNING_STATE.md` puis `EXPERIMENTS_LOG.md` Exp 010. **Prochaine action : Phase 2 — montée 2.4.0** : (1) endpoint `POST /blocks/batch-update` (N updates = 1 révision, all-or-nothing, 1 écriture rate limit) + tool MCP `update_blocks` ; (2) paramètre `dry_run` sur les routes d'écriture + tool MCP. Puis Phase 3 (scénarios utilisateur via le MCP) et Phase 4 (livraison lockstep).
+**Pour reprendre** : AGENTS.md auto-chargé au démarrage. Lire `ONBOARDING.md` (§1-8) puis `docs-learning/LEARNING_STATE.md` puis `EXPERIMENTS_LOG.md` Exp 011. **Prochaine action : Phase 3 — scénarios « exaucés exactement »** : demandes utilisateur réalistes testées À TRAVERS le MCP miroir (relecture = demande, audit + révision OK), consignées dans TOOLS_DISCOVERED + `houetor-mcp/README.md` (incluant le mode d'emploi de portage vers `app/mcp/`). Puis Phase 4 restante : docs (README MCP à compléter si besoin) et choix avec l'utilisateur sur le portage vers `app/mcp/` en production.
 
 **Commandes MCP utiles** (dans WSL, depuis `houetor-mcp/`) :
 ```bash
-npm test                                    # 18 unitaires
-WORDPRESS_URL=http://localhost:8888 HOUETOR_TOKEN=<token> npm run test:integration   # 16 intégration
+npm test                                    # 24 unitaires
+WORDPRESS_URL=http://localhost:8888 HOUETOR_TOKEN=<token> npm run test:integration   # 28 intégration
 WORDPRESS_URL=http://localhost:8888 HOUETOR_TOKEN=<token> npm start                  # serveur :8890/mcp
 ```
 
 **Fils ouverts à retenir** :
 1. Tests HTTP externes depuis Windows bloqués (pare-feu Hyper-V, pas admin) — non bloquant, équivalent interne OK.
 2. `houetor-selfhare` : ne pas y toucher sans validation explicite de l'utilisateur.
-3. Roadmap block-mcp (§9 d'ONBOARDING.md) : ops structurelles, tier policy, PHPUnit, auto-transforms, budget séparé rewrites.
+3. Roadmap block-mcp (§9 d'ONBOARDING.md) : ops structurelles, tier policy, PHPUnit, auto-transforms, budget séparé rewrites, compte agent WP moindre privilège.
+4. Phase 3 mission : scénarios utilisateur via MCP + README portage `app/mcp/`.
