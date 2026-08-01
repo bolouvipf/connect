@@ -61,6 +61,8 @@ Il contient :
 
 Le dépôt sert aussi de **terrain d'apprentissage isolé** pour faire évoluer le plugin `houetor-connect` sans risquer la production : source extraite du zip, environnement WordPress de test local, docs de vérité terrain et tests consignés en preuve.
 
+**Objectif du lab** : garantir que **toute action CRUD qu'un utilisateur demande à l'IA s'exécute sans erreur** — lecture avant écriture (CAS `expected_hash`), `dry_run` (répétition générale), batch atomique `update_blocks`, garde-fous (rate limit, révision, audit), erreurs traduites en conseils actionnables, et relecture de confirmation. Contrat prouvé par les scénarios « exaucés exactement » (24/24 PASS via le MCP miroir).
+
 - ➡️ [`ONBOARDING.md`](./ONBOARDING.md) — kit de continuité pour les agents IA (env, règles, état, roadmap)
 - ➡️ [`docs-learning/`](./docs-learning/) — mémoire du lab (6 fichiers : source de vérité, capacités, tests, bugs, expériences, progression)
 

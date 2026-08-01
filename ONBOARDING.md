@@ -6,7 +6,19 @@
 
 ## 1. Le but du projet
 
-Un lab d'apprentissage isolé pour **houetor-connect** (plugin WordPress qui expose une API REST `houetor/v1` à des agents IA). L'agent apprend la vérité terrain du plugin (sources, tests, preuves), l'améliore (bugs, robustesse, sécurité), et produit des livrables exploitables (code testé + zip de distribution) — **sans jamais toucher à la production ni au répertoire d'origine des plugins** (`C:\Users\Kimsh\Pictures\Screenshots\houetor`).
+**L'objectif final du projet : garantir que toute action CRUD qu'un utilisateur demande à l'IA s'exécute sans erreur.** L'utilisateur parle en langage naturel (« corrige le texte du bloc Promo », « ajoute une offre avant le pied de page », « supprime l'ancienne bannière ») ; l'IA traduit la demande en appels sûrs (lecture → écriture → confirmation) et la demande **aboutit réellement**, sans échec, sans conflit non résolu, sans page cassée.
+
+Ce contrat de qualité est assuré par les mécanismes du plugin et du MCP, **tous testés en preuve** :
+1. **Relire avant d'écrire** — `get_page_blocks` fournit `content_md5` ; l'agent passe ce hash en `expected_hash` (CAS) → un conflit 409 (page modifiée par ailleurs) est détecté et l'agent relit pour repartir sur un état frais.
+2. **`dry_run` sur toutes les écritures** — répétition générale sans rien écrire (aucune écriture/révision/audit/rate limit) : l'utilisateur peut valider l'effet avant publication.
+3. **Batch atomique `update_blocks`** — N corrections demandées en une fois = 1 révision, all-or-nothing, max 50.
+4. **Garde-fous** — rate limit (429), révision avant toute écriture, journal d'audit, refs HWC stables.
+5. **Erreurs traduites en conseils actionnables** — le 409 dit « relisez la page », le 429 « attendez ~60 s » : l'agent sait quoi faire au lieu de bloquer.
+6. **Relire pour confirmer** — après chaque écriture, l'agent vérifie que le résultat correspond exactement à la demande.
+
+**Preuve de ce contrat** : les scénarios « exaucés exactement » (demandes utilisateur réalistes passées À TRAVERS le MCP miroir, consignées en brut dans `docs-learning/TOOLS_DISCOVERED.md` série 003) — 24/24 PASS.
+
+Le lab est un **environnement d'apprentissage isolé** pour construire et prouver tout cela sur **houetor-connect** (plugin WordPress qui expose une API REST `houetor/v1` à des agents IA) : l'agent apprend la vérité terrain du plugin (sources, tests, preuves), l'améliore (bugs, robustesse, sécurité), et produit des livrables exploitables (code testé + zip de distribution) — **sans jamais toucher à la production ni au répertoire d'origine des plugins** (`C:\Users\Kimsh\Pictures\Screenshots\houetor`).
 
 Principe : chaque découverte, test et bug est **documenté en preuve** (résultats bruts, pas de résumé) dans `docs-learning/`.
 

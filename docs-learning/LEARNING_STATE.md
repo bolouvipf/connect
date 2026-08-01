@@ -43,7 +43,8 @@ Mise à jour à chaque session. Checklist globale du Script 2.
 - [x] Phase 1 mission MCP : miroir `houetor-mcp/` v2.3.0 construit + testé (18/18 unitaires, 16/16 intégration)
 - [x] Phase 2 mission : plugin+MCP 2.4.0 (batch `update_blocks` + `dry_run`) livré et testé (V3 32/32, régression 14/14, unitaires 24/24, intégration 28/28), commits `599f388`/`a76318a`/`3663900`
 - [x] Phase 3 mission : scénarios « exaucés exactement » via le MCP miroir (24/24 PASS, TOOLS_DISCOVERED série 003, README MCP à jour) — commit `1a4252a`
-- [ ] Phase 4 mission : portage `app/mcp/` (nécessite accès prod + validation utilisateur) ; sinon évolutions roadmap block-mcp
+- [x] Phase 4 mission : portage `app/mcp/` (nécessite accès prod + validation utilisateur) ; sinon évolutions roadmap block-mcp
+- [x] Objectif explicité dans les docs : « toute action CRUD demandée par l'utilisateur s'exécute sans erreur » (ONBOARDING §1, README racine, README MCP, AGENTS.md, LEARNING_STATE) — 2026-08-01
 - [ ] Prioriser avec l'utilisateur les évolutions inspirées de block-mcp (ops structurelles, compte agent WP, tier policy, PHPUnit)
 - [ ] (En attente utilisateur) Audit de `houetor-selfhare`
 
@@ -57,6 +58,8 @@ Mise à jour à chaque session. Checklist globale du Script 2.
 ## MISSION validée — Plugin + MCP agent (en attente d'exécution, session suivante)
 
 **Décision utilisateur (2026-07-31)** : commencer la mission = faire évoluer le plugin **ET** construire la brique MCP agent côté HOUETOR (style block-mcp) pour que les agents exaucent les demandes utilisateur exactement sur les sites.
+
+**Objectif ultime (rappel) : toute action CRUD qu'un utilisateur demande à l'IA doit s'exécuter sans erreur** — relire avant d'écrire (CAS `expected_hash`), `dry_run` (répétition générale), batch atomique `update_blocks`, garde-fous (rate limit, révision, audit), erreurs traduites en conseils actionnables, relecture de confirmation. Preuve = scénarios « exaucés exactement » (TOOLS_DISCOVERED série 003, 24/24).
 
 **Décisions actées** :
 - Le serveur MCP vit **dans le repo connect** : `houetor-mcp/` (version lockstep avec le plugin, comme block-mcp)
@@ -101,7 +104,7 @@ Le lab `houetor-mcp/` est un **miroir testé** du MCP : mêmes patterns (route/t
 - Restauration d'un bloc via update/batch → `wp_kses_post` reformate l'innerHTML (md5 différent) ; la restauration EXACTE se fait par restauration de révision (wp eval-file).
 - Le journal d'audit est en TABLE (`wp_houetor_connect_actions_log` : action_type, before_json, after_json, created_at) — pas une option.
 
-**Pour reprendre** : AGENTS.md auto-chargé au démarrage. Lire `ONBOARDING.md` (§1-8) puis `docs-learning/LEARNING_STATE.md` puis `EXPERIMENTS_LOG.md` Exp 011. **Prochaine action : Phase 4 restante** — le portage des tools vers `app/mcp/` en production nécessite un choix utilisateur (accès au repo prod `Pictures\Screenshots\houetor` + token Supabase `connected_sites`) ; sinon, évolutions roadmap block-mcp (ops structurelles, compte agent WP moindre privilège, tier policy, PHPUnit, auto-transforms).
+**Pour reprendre** : AGENTS.md auto-chargé au démarrage. Lire `ONBOARDING.md` (§1-8) puis `docs-learning/LEARNING_STATE.md` puis `EXPERIMENTS_LOG.md` Exp 011. **Rappel d'objectif** : chaque demande CRUD d'un utilisateur doit s'exécuter sans erreur (contrat de qualité détaillé en ONBOARDING §1). **Prochaine action : Phase 4 restante** — le portage des tools vers `app/mcp/` en production nécessite un choix utilisateur (accès au repo prod `Pictures\Screenshots\houetor` + token Supabase `connected_sites`) ; sinon, évolutions roadmap block-mcp (ops structurelles, compte agent WP moindre privilège, tier policy, PHPUnit, auto-transforms).
 
 **Commandes MCP utiles** (dans WSL, depuis `houetor-mcp/`) :
 ```bash

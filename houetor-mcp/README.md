@@ -1,5 +1,15 @@
 # @houetor/connect-mcp — Miroir lab du serveur MCP HOUETOR
 
+## Objectif
+
+**Faire en sorte que toute action CRUD qu'un utilisateur demande à l'IA s'exécute sans erreur.**
+L'utilisateur parle en langage naturel ; l'agent traduit la demande en un workflow sûr —
+**relire avant d'écrire** (`get_page_blocks` → `content_md5` → `expected_hash` CAS), **`dry_run`**
+pour la répétition générale, **batch atomique `update_blocks`** pour les demandes multiples,
+et **relecture de confirmation** après écriture. Les erreurs restantes (409/429/404/401) sont
+traduites en conseils actionnables pour que l'agent reparte du bon pied au lieu de bloquer.
+La preuve de ce contrat : les scénarios utilisateur « exaucés exactement » (24/24 PASS, Phase 3).
+
 Serveur MCP (Model Context Protocol) qui pilote le plugin WordPress **houetor-connect**
 (v2.4.0 : CRUD de blocs avec refs HWC, CAS `expected_hash`, rate limit, audit log, révisions,
 batch atomique `update_blocks`, `dry_run`).
