@@ -88,9 +88,96 @@ server.listen(PORT, async () => {
       updBad.status === 409 && badBody.error?.data?.code === 'error_conflict',
     )
 
+    // ---- v2.4.0 : dry_run + batch ----
+    const blocksDryBefore = (await (await rpc('get_page_blocks', { page_id: '2' })).json()).result?.data
+    const updDry = await rpc('update_block_content', {
+      page_id: '2',
+      ref,
+      new_content: '<p>dry — ne doit pas etre applique</p>',
+      dry_run: true,
+    })
+    const updDryBody = await updDry.json()
+    check('update_block_content dry_run → dry_run:true', updDryBody.result?.data?.dry_run === true, updDryBody.error?.message ?? '')
+    const blocksDryAfter = (await (await rpc('get_page_blocks', { page_id: '2' })).json()).result?.data
+    check('dry_run: contenu inchangé (md5 identique)', blocksDryAfter.content_md5 === blocksDryBefore.content_md5)
+
+    const delDry = await rpc('delete_block', { page_id: '2', ref, dry_run: true })
+    const delDryBody = await delDry.json()
+    check('delete_block dry_run → dry_run:true', delDryBody.result?.data?.dry_run === true)
+    const blocksAfterDelDry = (await (await rpc('get_page_blocks', { page_id: '2' })).json()).result?.data?.blocks ?? []
+    check('delete_block dry_run: ref toujours présente', blocksAfterDelDry.some((b) => b.ref === ref))
+
+    const createDry = await rpc('create_block', {
+      page_id: '2',
+      block_name: 'core/paragraph',
+      content: '<p>dry — pas de creation</p>',
+      module: 'test',
+      dry_run: true,
+    })
+    const createDryBody = await createDry.json()
+    check('create_block dry_run → dry_run:true', createDryBody.result?.data?.dry_run === true)
+
+    const injectDry = await rpc('inject_page', {
+      page_id: '2',
+      html: '<p>dry inject</p>',
+      module: 'test',
+      dry_run: true,
+    })
+    const injectDryBody = await injectDry.json()
+    check('inject_page dry_run → dry_run:true', injectDryBody.result?.data?.dry_run === true)
+
+    const create2Res = await rpc('create_block', {
+      page_id: '2',
+      block_name: 'core/paragraph',
+      content: '<p>MCP lab — bloc B pour batch</p>',
+      module: 'test',
+    })
+    const create2Body = await create2Res.json()
+    const ref2 = create2Body.result?.data?.ref
+    check('create_block #2 → ref générée', typeof ref2 === 'string' && ref2.startsWith('test-'), `ref2=${ref2}`)
+
+    const batchMd5 = (await (await rpc('get_page_blocks', { page_id: '2' })).json()).result?.data?.content_md5
+    const batchRes = await rpc('update_blocks', {
+      page_id: '2',
+      updates: [
+        { ref, new_content: '<p>MCP lab — batch A</p>' },
+        { ref: ref2, new_content: '<p>MCP lab — batch B</p>' },
+      ],
+      expected_hash: batchMd5,
+    })
+    const batchBody = await batchRes.json()
+    check('update_blocks batch nominal → count=2', batchRes.status === 200 && batchBody.result?.data?.count === 2, batchBody.error?.message ?? '')
+
+    const batchFail = await rpc('update_blocks', {
+      page_id: '2',
+      updates: [
+        { ref, new_content: '<p>NE DOIT PAS ETRE APPLIQUE</p>' },
+        { ref: 'test-ref-inexistante', new_content: '<p>x</p>' },
+      ],
+    })
+    const batchFailBody = await batchFail.json()
+    check(
+      'update_blocks all-or-nothing: ref invalide → échec traduit (400/404)',
+      batchFail.status === 400 || batchFail.status === 404,
+      batchFailBody.error?.message ?? '',
+    )
+    const blocksAfterBatchFail = (await (await rpc('get_page_blocks', { page_id: '2' })).json()).result?.data?.blocks ?? []
+    check('batch all-or-nothing: rien appliqué (contenu A inchangé)', blocksAfterBatchFail.find((b) => b.ref === ref)?.content.includes('NE DOIT PAS') === false)
+
+    const batchDry = await rpc('update_blocks', {
+      page_id: '2',
+      updates: [{ ref, new_content: '<p>dry batch</p>' }],
+      dry_run: true,
+    })
+    const batchDryBody = await batchDry.json()
+    check('update_blocks dry_run → dry_run:true + count=1', batchDryBody.result?.data?.dry_run === true && batchDryBody.result?.data?.count === 1)
+
     const delRes = await rpc('delete_block', { page_id: '2', ref })
     const delBody = await delRes.json()
     check('delete_block → 200', delRes.status === 200, delBody.error?.message ?? '')
+
+    const delRes2 = await rpc('delete_block', { page_id: '2', ref: ref2 })
+    check('delete_block #2 → 200', delRes2.status === 200)
 
     const blocks3 = (await (await rpc('get_page_blocks', { page_id: '2' })).json()).result?.data?.blocks ?? []
     check('page 2 restaurée (count initial)', blocks3.length === countBefore, `before=${countBefore} after=${blocks3.length}`)

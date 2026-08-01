@@ -1,6 +1,6 @@
 {
   "name": "@houetor/connect-mcp",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Miroir lab du serveur MCP HOUETOR (app/mcp) — pilote houetor-connect (WordPress) en JSON-RPC 2.0 + SSE, tools portables dans app/mcp/",
   "type": "module",
   "main": "dist/index.cjs",

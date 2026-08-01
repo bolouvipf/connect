@@ -114,6 +114,80 @@ describe('handleRequest', () => {
     expect(body.error.data.code).toBe('rate_limited')
   })
 
+  it('update_blocks appelle /blocks/batch-update avec updates + dry_run', async () => {
+    mockFetchOnce(200, { success: true, count: 2, dry_run: false })
+    const res = await post('update_blocks', {
+      page_id: '2',
+      updates: [
+        { ref: 'lab-aaa', new_content: '<p>1</p>' },
+        { block_index: '3', new_content: '<p>2</p>' },
+      ],
+      expected_hash: 'md5-x',
+      dry_run: 'true',
+    })
+    expect(res.status).toBe(200)
+    const call = vi.mocked(fetch).mock.calls[0]
+    expect(String(call[0])).toBe('http://localhost:8888/wp-json/houetor/v1/blocks/batch-update')
+    expect(call[1]?.method).toBe('POST')
+    const sent = JSON.parse(String(call[1]?.body))
+    expect(sent.updates).toEqual([
+      { ref: 'lab-aaa', block_index: undefined, new_content: '<p>1</p>' },
+      { ref: undefined, block_index: '3', new_content: '<p>2</p>' },
+    ])
+    expect(sent.dry_run).toBe(true)
+    expect(sent.expected_hash).toBe('md5-x')
+    const body = await res.json()
+    expect(body.result.data.count).toBe(2)
+  })
+
+  it('update_blocks sans updates → 400', async () => {
+    const res = await post('update_blocks', { page_id: '2' })
+    expect(res.status).toBe(400)
+  })
+
+  it('update_blocks avec update sans cible → 400', async () => {
+    const res = await post('update_blocks', {
+      page_id: '2',
+      updates: [{ new_content: '<p>sans cible</p>' }],
+    })
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error.message).toContain('ref ou block_index')
+  })
+
+  it('inject_page transmet dry_run en booléen', async () => {
+    mockFetchOnce(200, { success: true, dry_run: true })
+    const res = await post('inject_page', {
+      page_id: '2',
+      html: '<p>x</p>',
+      module: 'annonces',
+      dry_run: 'true',
+    })
+    expect(res.status).toBe(200)
+    const sent = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))
+    expect(sent.dry_run).toBe(true)
+  })
+
+  it('inject_page avec dry_run=false transmet false', async () => {
+    mockFetchOnce(200, { success: true })
+    await post('inject_page', { page_id: '2', html: '<p>x</p>', module: 'annonces', dry_run: false })
+    const sent = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))
+    expect(sent.dry_run).toBe(false)
+  })
+
+  it('SSE GET liste le tool update_blocks', async () => {
+    const res = await handleRequest(
+      new Request('http://localhost:8890/mcp', {
+        method: 'GET',
+        headers: { 'x-hwt-token': 'HWT-ONG-abc' },
+      }),
+      CONFIG,
+    )
+    const text = await res.text()
+    const parsed = JSON.parse(text.replace('data: ', '').replace('\n\n', ''))
+    expect(parsed.tools.some((t: { name: string }) => t.name === 'update_blocks')).toBe(true)
+  })
+
   it('paramètre requis manquant → 400', async () => {
     mockFetchOnce(200, {})
     const res = await post('create_block', {})

@@ -43,6 +43,7 @@ export const HWT_TOOLS: HWTool[] = [
       block_id: { type: 'string', required: false, description: 'Identifiant de bloc (généré si absent)' },
       position: { type: 'string', required: false, description: 'append | prepend | replace (défaut: append)' },
       expected_hash: { type: 'string', required: false, description: 'md5 du contenu attendu (CAS, issu de get_page_blocks / /pages)' },
+      dry_run: { type: 'boolean', required: false, description: 'true = valider sans rien écrire (aucune révision, aucun audit)' },
     },
   },
   {
@@ -54,6 +55,7 @@ export const HWT_TOOLS: HWTool[] = [
       module: { type: 'string', required: true, description: 'Module HOUETOR du bloc' },
       block_id: { type: 'string', required: true, description: 'Identifiant du bloc à retirer' },
       expected_hash: { type: 'string', required: false, description: 'md5 du contenu attendu (CAS)' },
+      dry_run: { type: 'boolean', required: false, description: 'true = valider sans rien écrire' },
     },
   },
   {
@@ -69,6 +71,7 @@ export const HWT_TOOLS: HWTool[] = [
       anchor_ref: { type: 'string', required: false, description: 'Ref HWC d\'un bloc existant (obligatoire pour before/after)' },
       anchor_index: { type: 'string', required: false, description: 'Index de bloc alternatif à anchor_ref' },
       expected_hash: { type: 'string', required: false, description: 'md5 du contenu attendu (CAS)' },
+      dry_run: { type: 'boolean', required: false, description: 'true = valider sans rien écrire (ref simulée)' },
     },
   },
   {
@@ -81,6 +84,7 @@ export const HWT_TOOLS: HWTool[] = [
       block_index: { type: 'string', required: false, description: 'Index du bloc (si pas de ref)' },
       new_content: { type: 'string', required: true, description: 'Nouveau contenu du bloc' },
       expected_hash: { type: 'string', required: false, description: 'md5 du contenu attendu (CAS)' },
+      dry_run: { type: 'boolean', required: false, description: 'true = valider sans rien écrire' },
     },
   },
   {
@@ -92,6 +96,18 @@ export const HWT_TOOLS: HWTool[] = [
       ref: { type: 'string', required: false, description: 'Ref HWC du bloc (prioritaire sur block_index)' },
       block_index: { type: 'string', required: false, description: 'Index du bloc (si pas de ref)' },
       expected_hash: { type: 'string', required: false, description: 'md5 du contenu attendu (CAS)' },
+      dry_run: { type: 'boolean', required: false, description: 'true = valider sans rien écrire' },
+    },
+  },
+  {
+    name: 'update_blocks',
+    description: "Mettre à jour plusieurs blocs d'une page en UNE révision atomique (all-or-nothing, max 50, compte 1 écriture rate limit) — CAS expected_hash global",
+    profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
+    params: {
+      page_id: { type: 'string', required: true, description: 'ID de la page WordPress' },
+      updates: { type: 'array', required: true, description: 'Tableau [{ref|block_index, new_content}, ...] — chaque entrée cible un bloc par ref HWC (prioritaire) ou index' },
+      expected_hash: { type: 'string', required: false, description: 'md5 du contenu attendu (CAS, issu de get_page_blocks)' },
+      dry_run: { type: 'boolean', required: false, description: 'true = valider toutes les cibles sans rien écrire' },
     },
   },
   {

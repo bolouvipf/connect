@@ -1,6 +1,7 @@
-// Client REST vers l'API de houetor-connect (v2.3.0). Même convention que
+// Client REST vers l'API de houetor-connect (v2.4.0). Même convention que
 // dispatch.ts (prod) : header X-Houetor-Token + endpoints /pages /menus /inject
-// /uninject /page-blocks /block-content /blocks, erreurs traduites.
+// /uninject /page-blocks /block-content /blocks /blocks/batch-update,
+// erreurs traduites. Paramètre dry_run sur toutes les écritures.
 
 import { translateError } from './error-translator.js'
 
@@ -71,11 +72,12 @@ export class WordPressClient {
 
   inject(params: {
     page_id: string
-    html: string
+    content: string
     module?: string
     block_id?: string
     position?: string
     expected_hash?: string
+    dry_run?: boolean
   }) {
     return this.request({ method: 'POST', path: '/inject', body: params })
   }
@@ -85,6 +87,7 @@ export class WordPressClient {
     module: string
     block_id: string
     expected_hash?: string
+    dry_run?: boolean
   }) {
     return this.request({ method: 'POST', path: '/uninject', body: params })
   }
@@ -98,6 +101,7 @@ export class WordPressClient {
     anchor_ref?: string
     anchor_index?: string
     expected_hash?: string
+    dry_run?: boolean
   }) {
     return this.request({ method: 'POST', path: '/blocks', body: params })
   }
@@ -108,6 +112,7 @@ export class WordPressClient {
     block_index?: string
     new_content: string
     expected_hash?: string
+    dry_run?: boolean
   }) {
     return this.request({ method: 'PATCH', path: '/block-content', body: params })
   }
@@ -117,7 +122,17 @@ export class WordPressClient {
     ref?: string
     block_index?: string
     expected_hash?: string
+    dry_run?: boolean
   }) {
     return this.request({ method: 'DELETE', path: '/blocks', body: params })
+  }
+
+  batchUpdateBlocks(params: {
+    page_id: string
+    updates: Array<{ ref?: string; block_index?: string; new_content: string }>
+    expected_hash?: string
+    dry_run?: boolean
+  }) {
+    return this.request({ method: 'POST', path: '/blocks/batch-update', body: params })
   }
 }
