@@ -4,7 +4,7 @@
  * Plugin Name:       Houetor Connect
  * Plugin URI:        https://houetor.com
  * Description:       Connecte votre site WordPress a Houetor Hare. Affiche automatiquement vos annonces, produits ou formations selon votre profil HWT.
- * Version:           2.3.0
+ * Version:           2.4.0
  * Author:            Houetor
  * Author URI:        https://houetor.com
  * License:           GPL-2.0+
@@ -17,7 +17,7 @@
 
 defined('ABSPATH') || exit;
 
-define('HWC_VERSION', '2.3.0');
+define('HWC_VERSION', '2.4.0');
 define('HWC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('HWC_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('HWC_API_BASE', 'https://houetor.com/api/public');

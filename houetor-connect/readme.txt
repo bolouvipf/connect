@@ -4,7 +4,7 @@ Donate link: https://houetor.com
 Tags: houetor, hare, annonces, produits, formations, api
 Requires at least: 5.8
 Tested up to: 6.8
-Stable tag: 2.3.0
+Stable tag: 2.4.0
 Requires PHP: 7.4
 License: GPL-2.0+
 License URI: http://www.gnu.org/licenses/gpl-2.0.txt
@@ -53,6 +53,15 @@ Oui, vous pouvez configurer autant d\'injections que nécessaire dans la section
 Vérifiez que votre code HWT est valide et que la page sélectionnée existe. Le cache est rafraîchi toutes les 5 minutes.
 
 == Changelog ==
+
+= 2.4.0 =
+* POST /blocks/batch-update : mise à jour atomique de plusieurs blocs (max 50)
+  en UNE seule révision — all-or-nothing, compte 1 écriture rate limit
+* Paramètre dry_run (true/1) sur toutes les routes d'écriture
+  (/inject, /uninject, /block-content, /blocks, /blocks/batch-update) :
+  validation complète (CAS, cibles, contenu) sans aucune écriture,
+  sans révision, sans audit, sans consommation du rate limit
+* Versions alignées (header + constante + readme)
 
 = 2.3.0 =
 * Ciblage des blocs par ref HWC ({module}-{block_id}) en plus de l'index

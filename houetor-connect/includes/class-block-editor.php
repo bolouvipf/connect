@@ -53,6 +53,8 @@ class HWC_Block_Editor {
         return null;
     }
 
+    const BATCH_MAX_UPDATES = 50;
+
     /**
      * Vérification CAS : expected_hash (md5 du post_content au moment de la lecture)
      * doit correspondre au contenu actuel. Null = vérification désactivée.
@@ -62,6 +64,58 @@ class HWC_Block_Editor {
             return true;
         }
         return md5($post->post_content) === $expected_hash;
+    }
+
+    /**
+     * Construit le HTML de remplacement d'un bloc (attributs préservés, marqueurs
+     * HWC conservés). Retourne le HTML complet prêt à être ré-sérialisé.
+     */
+    private static function build_replacement_html($block, $new_content) {
+        $html = trim($block['innerHTML'] ?? '');
+        $marker_start = '';
+        $marker_end = '';
+        $ref = self::extract_hwc_ref($block);
+
+        if ($ref !== null) {
+            $marker_start = '<!-- HWC ' . $ref . ' start -->';
+            $marker_end = '<!-- HWC ' . $ref . ' end -->';
+            $html = preg_replace('/^<!-- HWC [A-Za-z0-9_]+-[A-Za-z0-9_-]+ start -->/', '', $html);
+            $html = preg_replace('/<!-- HWC [A-Za-z0-9_]+-[A-Za-z0-9_-]+ end -->$/', '', $html);
+            $html = trim($html);
+        }
+
+        if (preg_match('/^<(\w+)/', $html, $m)) {
+            $tag = $m[1];
+            if (preg_match('/^<' . $tag . '([^>]*)>/', $html, $attr_m)) {
+                $new_html = "<{$tag}{$attr_m[1]}>" . $new_content . "</{$tag}>";
+            } else {
+                $new_html = "<{$tag}>" . $new_content . "</{$tag}>";
+            }
+        } else {
+            $new_html = $new_content;
+        }
+
+        return $marker_start . $new_html . $marker_end;
+    }
+
+    /**
+     * Localise l'index (tableau parse_blocks) d'un bloc par ref ou index logique.
+     * Retourne ['idx' => int, 'ref' => string|null] ou null.
+     */
+    private static function locate_block($blocks, $ref, $block_index) {
+        $actual = 0;
+        foreach ($blocks as $idx => $block) {
+            if (empty($block['blockName'])) continue;
+            if ($ref !== null) {
+                if (self::extract_hwc_ref($block) === $ref) {
+                    return array('idx' => $idx, 'ref' => $ref);
+                }
+            } elseif ($block_index !== null && $actual === intval($block_index)) {
+                return array('idx' => $idx, 'ref' => self::extract_hwc_ref($block));
+            }
+            $actual++;
+        }
+        return null;
     }
 
     /**
@@ -84,7 +138,7 @@ class HWC_Block_Editor {
         return null;
     }
 
-    public static function update_block_content($page_id, $block_index = null, $new_content = '', $ref = null, $expected_hash = null) {
+    public static function update_block_content($page_id, $block_index = null, $new_content = '', $ref = null, $expected_hash = null, $dry_run = false) {
         $post = get_post($page_id);
         if (!$post) {
             return ['success' => false, 'message' => 'Page introuvable.'];
@@ -100,30 +154,9 @@ class HWC_Block_Editor {
         }
 
         $blocks = parse_blocks($content);
+        $located = self::locate_block($blocks, $ref, $block_index);
 
-        $actual_index = 0;
-        $target_idx = null;
-        $target_ref = null;
-        foreach ($blocks as $idx => $block) {
-            if (empty($block['blockName'])) continue;
-            if ($ref !== null) {
-                $r = self::extract_hwc_ref($block);
-                if ($r === $ref) {
-                    $target_idx = $idx;
-                    $target_ref = $r;
-                    break;
-                }
-            } else {
-                if ($actual_index === $block_index) {
-                    $target_idx = $idx;
-                    $target_ref = self::extract_hwc_ref($block);
-                    break;
-                }
-            }
-            $actual_index++;
-        }
-
-        if ($target_idx === null) {
+        if ($located === null) {
             if ($ref !== null) {
                 return ['success' => false, 'message' => "Aucun bloc avec la ref \"$ref\" trouvé sur la page $page_id."];
             }
@@ -132,39 +165,15 @@ class HWC_Block_Editor {
             return ['success' => false, 'message' => "Bloc #$block_index introuvable (0-" . ($total - 1) . " disponible). Utilise get_page_blocks pour voir les indices valides."];
         }
 
+        $target_idx = $located['idx'];
+        $target_ref = $located['ref'];
         $block_name = $blocks[$target_idx]['blockName'];
 
         if (!empty($blocks[$target_idx]['innerBlocks'])) {
-            return ['success' => false, 'message' => "Le bloc #$actual_index ($block_name) contient des blocs imbriqués et ne peut pas être modifié directement."];
+            return ['success' => false, 'message' => "Le bloc #$block_index ($block_name) contient des blocs imbriqués et ne peut pas être modifié directement."];
         }
 
-        // Extraire les marqueurs HWC s'ils enrobent le bloc (à préserver)
-        $marker_start = '';
-        $marker_end = '';
-        $old_html = trim($blocks[$target_idx]['innerHTML']);
-
-        if ($target_ref !== null) {
-            $marker_start = '<!-- HWC ' . $target_ref . ' start -->';
-            $marker_end = '<!-- HWC ' . $target_ref . ' end -->';
-            $old_html = preg_replace('/^<!-- HWC [A-Za-z0-9_]+-[A-Za-z0-9_-]+ start -->/', '', $old_html);
-            $old_html = preg_replace('/<!-- HWC [A-Za-z0-9_]+-[A-Za-z0-9_-]+ end -->$/', '', $old_html);
-            $old_html = trim($old_html);
-        }
-
-        if (preg_match('/^<(\w+)/', $old_html, $m)) {
-            $tag = $m[1];
-            if (preg_match('/^<' . $tag . '([^>]*)>/', $old_html, $attr_m)) {
-                $attr_str = $attr_m[1];
-                $new_html = "<{$tag}{$attr_str}>" . $new_content . "</{$tag}>";
-            } else {
-                $new_html = "<{$tag}>" . $new_content . "</{$tag}>";
-            }
-        } else {
-            $new_html = $new_content;
-        }
-
-        $new_html = $marker_start . $new_html . $marker_end;
-
+        $new_html = self::build_replacement_html($blocks[$target_idx], $new_content);
         $blocks[$target_idx]['innerHTML'] = $new_html;
         foreach ($blocks[$target_idx]['innerContent'] as $ic => $chunk) {
             if (is_string($chunk)) {
@@ -178,6 +187,12 @@ class HWC_Block_Editor {
 
         $new_post_content = serialize_blocks($blocks);
 
+        $cible = $ref !== null ? "ref \"$ref\"" : "bloc #$block_index";
+
+        if ($dry_run) {
+            return ['success' => true, 'dry_run' => true, 'post_id' => $page_id, 'message' => "DRY RUN (aucune écriture) : le contenu du $cible ($block_name) dans « {$post->post_title} » est prêt à être mis à jour."];
+        }
+
         wp_save_post_revision($page_id);
 
         $updated = wp_update_post([
@@ -190,15 +205,114 @@ class HWC_Block_Editor {
         }
 
         $post_title = $post->post_title;
-        $cible = $ref !== null ? "ref \"$ref\"" : "bloc #$block_index";
         return ['success' => true, 'post_id' => $updated, 'message' => "Bloc $cible ($block_name) mis à jour dans « $post_title »."];
+    }
+
+    /**
+     * Mise à jour atomique de N blocs en UNE révision (all-or-nothing, max 50).
+     * Toutes les cibles sont validées AVANT toute écriture ; si une seule échoue,
+     * rien n'est écrit. Compte 1 écriture rate limit (géré côté REST).
+     */
+    public static function batch_update_blocks($page_id, $updates, $expected_hash = null, $dry_run = false) {
+        $post = get_post($page_id);
+        if (!$post) {
+            return ['success' => false, 'message' => 'Page introuvable.'];
+        }
+
+        if (!self::cas_check($post, $expected_hash)) {
+            return ['success' => false, 'error' => 'conflict', 'message' => 'Conflit de concurrence : le contenu de la page a changé depuis la lecture. Relancez get_page_blocks et repassez le expected_hash à jour.'];
+        }
+
+        $content = $post->post_content;
+        if (empty(trim($content))) {
+            return ['success' => false, 'message' => 'Le contenu de cette page est vide ou utilise un template.'];
+        }
+
+        if (!is_array($updates) || empty($updates)) {
+            return ['success' => false, 'message' => 'updates requis (tableau non vide de {ref|block_index, new_content}).'];
+        }
+
+        if (count($updates) > self::BATCH_MAX_UPDATES) {
+            return ['success' => false, 'message' => 'Trop d\'updates : maximum ' . self::BATCH_MAX_UPDATES . ' par appel batch.'];
+        }
+
+        $blocks = parse_blocks($content);
+        $results = [];
+
+        // Phase 1 : validation complète AVANT toute écriture (all-or-nothing).
+        foreach ($updates as $update) {
+            if (!is_array($update)) {
+                return ['success' => false, 'message' => 'Chaque update doit être un objet {ref|block_index, new_content}.'];
+            }
+
+            $update_ref   = isset($update['ref']) ? sanitize_text_field($update['ref']) : null;
+            $update_index = isset($update['block_index']) ? intval($update['block_index']) : null;
+            $new_content  = isset($update['new_content']) ? $update['new_content'] : '';
+
+            if ($update_ref === null && $update_index === null) {
+                return ['success' => false, 'message' => 'Chaque update doit fournir ref ou block_index.'];
+            }
+
+            $located = self::locate_block($blocks, $update_ref, $update_index);
+            if ($located === null) {
+                $cible = $update_ref !== null ? "ref \"$update_ref\"" : "bloc #$update_index";
+                return ['success' => false, 'message' => "Cible $cible introuvable sur la page $page_id — batch abandonné, aucune écriture effectuée."];
+            }
+
+            $target_idx = $located['idx'];
+            $block_name = $blocks[$target_idx]['blockName'];
+
+            if (!empty($blocks[$target_idx]['innerBlocks'])) {
+                return ['success' => false, 'message' => "Le bloc $block_name ciblé contient des blocs imbriqués — batch abandonné, aucune écriture effectuée."];
+            }
+
+            // Application en mémoire : les updates successifs voient les précédents.
+            $new_html = self::build_replacement_html($blocks[$target_idx], $new_content);
+            $blocks[$target_idx]['innerHTML'] = $new_html;
+            foreach ($blocks[$target_idx]['innerContent'] as $ic => $chunk) {
+                if (is_string($chunk)) {
+                    $blocks[$target_idx]['innerContent'][$ic] = $new_html;
+                }
+            }
+
+            if ($block_name === 'core/heading' && isset($blocks[$target_idx]['attrs']['content'])) {
+                $blocks[$target_idx]['attrs']['content'] = wp_strip_all_tags($new_content);
+            }
+
+            $results[] = [
+                'ref'        => $located['ref'],
+                'block_index'=> $update_index,
+                'blockName'  => $block_name,
+                'status'     => 'ok',
+            ];
+        }
+
+        $new_post_content = serialize_blocks($blocks);
+        $n = count($results);
+
+        if ($dry_run) {
+            return ['success' => true, 'dry_run' => true, 'post_id' => $page_id, 'count' => $n, 'updates' => $results, 'message' => "DRY RUN (aucune écriture) : $n bloc(s) valide(s), prêt(s) à être mis à jour en UNE révision dans « {$post->post_title} »."];
+        }
+
+        wp_save_post_revision($page_id);
+
+        $updated = wp_update_post([
+            'ID'           => $page_id,
+            'post_content' => wp_slash($new_post_content),
+        ], true);
+
+        if (is_wp_error($updated)) {
+            return ['success' => false, 'message' => $updated->get_error_message()];
+        }
+
+        return ['success' => true, 'post_id' => $updated, 'count' => $n, 'updates' => $results, 'message' => "$n bloc(s) mis à jour en UNE seule révision dans « {$post->post_title} »."];
     }
 
     /**
      * Crée un bloc. Si $module est fourni, le bloc est enrobé de marqueurs HWC
      * (ref auto-générée) pour être retrouvable par ref ensuite.
      */
-    public static function create_block($page_id, $block_name, $content, $insert_after_index = null, $insert_before_index = null, $module = '', $expected_hash = null) {
+    public static function create_block($page_id, $block_name, $content, $insert_after_index = null, $insert_before_index = null, $module = '', $expected_hash = null, $dry_run = false) {
         $post = get_post($page_id);
         if (!$post) {
             return ['success' => false, 'message' => 'Page introuvable.'];
@@ -323,6 +437,11 @@ class HWC_Block_Editor {
 
         $new_post_content = serialize_blocks($blocks);
 
+        if ($dry_run) {
+            $msg = "DRY RUN (aucune écriture) : bloc $block_name prêt à être créé dans « {$post->post_title} »." . ($ref ? " Ref simulée : $ref (sera différente à l'exécution réelle)" : '');
+            return ['success' => true, 'dry_run' => true, 'post_id' => $page_id, 'ref' => $ref, 'message' => $msg];
+        }
+
         wp_save_post_revision($page_id);
 
         $updated = wp_update_post([
@@ -342,7 +461,7 @@ class HWC_Block_Editor {
         ];
     }
 
-    public static function delete_block($page_id, $block_index = null, $ref = null, $expected_hash = null) {
+    public static function delete_block($page_id, $block_index = null, $ref = null, $expected_hash = null, $dry_run = false) {
         $post = get_post($page_id);
         if (!$post) {
             return ['success' => false, 'message' => 'Page introuvable.'];
@@ -383,6 +502,12 @@ class HWC_Block_Editor {
         array_splice($blocks, $target_idx, 1);
         $new_post_content = serialize_blocks($blocks);
 
+        $cible = $ref !== null ? "ref \"$ref\"" : "bloc #$block_index";
+
+        if ($dry_run) {
+            return ['success' => true, 'dry_run' => true, 'post_id' => $page_id, 'message' => "DRY RUN (aucune écriture) : suppression du $cible prête dans « {$post->post_title} »."];
+        }
+
         wp_save_post_revision($page_id);
 
         $updated = wp_update_post([
@@ -394,7 +519,6 @@ class HWC_Block_Editor {
             return ['success' => false, 'message' => $updated->get_error_message()];
         }
 
-        $cible = $ref !== null ? "ref \"$ref\"" : "bloc #$block_index";
         return ['success' => true, 'post_id' => $updated, 'message' => "Bloc $cible supprimé de « {$post->post_title} »."];
     }
 

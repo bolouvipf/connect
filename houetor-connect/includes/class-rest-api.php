@@ -68,6 +68,12 @@ class HWC_REST_API {
                 'permission_callback' => array($this, 'check_token'),
             ),
         ));
+
+        register_rest_route('houetor/v1', '/blocks/batch-update', array(
+            'methods'             => 'POST',
+            'callback'            => array($this, 'batch_update_blocks'),
+            'permission_callback' => array($this, 'check_token'),
+        ));
     }
 
     public function check_token($request) {
@@ -119,6 +125,17 @@ class HWC_REST_API {
         $data['count']++;
         set_transient($key, $data, self::RATE_LIMIT_WINDOW);
         return true;
+    }
+
+    /**
+     * Lecture du paramètre dry_run (booléen acceptant true/1/"1"/"true").
+     * En dry_run : aucune écriture, aucune révision, aucun audit, aucun rate limit consommé.
+     */
+    private static function dry_run($params) {
+        if (!isset($params['dry_run'])) {
+            return false;
+        }
+        return filter_var($params['dry_run'], FILTER_VALIDATE_BOOLEAN);
     }
 
     /**
@@ -215,6 +232,7 @@ class HWC_REST_API {
         $position = isset($params['position']) ? sanitize_text_field($params['position']) : 'append';
         $block_id = isset($params['block_id']) ? sanitize_text_field($params['block_id']) : '';
         $expected_hash = isset($params['expected_hash']) ? sanitize_text_field($params['expected_hash']) : null;
+        $dry_run = self::dry_run($params);
 
         if ($page_id === 0 || empty($content)) {
             return new WP_Error('bad_request', 'page_id et contenu requis.', array('status' => 400));
@@ -224,7 +242,7 @@ class HWC_REST_API {
             return new WP_Error('bad_request', 'module requis.', array('status' => 400));
         }
 
-        if (!$this->check_rate_limit($page_id)) {
+        if (!$dry_run && !$this->check_rate_limit($page_id)) {
             return new WP_Error('rate_limited', 'Trop d\'écritures sur cette page (10/60s max). Réessayez plus tard.', array('status' => 429));
         }
 
@@ -267,8 +285,21 @@ class HWC_REST_API {
             }
         }
 
-        // Filet de sécurité : révision AVANT toute écriture
-        wp_save_post_revision($page_id);
+        // Filet de sécurité : révision AVANT toute écriture (sautée en dry_run)
+        if (!$dry_run) {
+            wp_save_post_revision($page_id);
+        }
+
+        if ($dry_run) {
+            return new WP_REST_Response(array(
+                'success'  => true,
+                'dry_run'  => true,
+                'page_id'  => $page_id,
+                'module'   => $module,
+                'block_id' => $block_id,
+                'message'  => 'DRY RUN (aucune écriture) : contenu prêt à être injecté avec les marqueurs HWC.',
+            ), 200);
+        }
 
         $updated = wp_update_post(array(
             'ID'           => $page_id,
@@ -296,12 +327,13 @@ class HWC_REST_API {
         $module  = isset($params['module']) ? sanitize_text_field($params['module']) : '';
         $block_id = isset($params['block_id']) ? sanitize_text_field($params['block_id']) : '';
         $expected_hash = isset($params['expected_hash']) ? sanitize_text_field($params['expected_hash']) : null;
+        $dry_run = self::dry_run($params);
 
         if ($page_id === 0 || empty($module) || empty($block_id)) {
             return new WP_Error('bad_request', 'page_id, module et block_id requis.', array('status' => 400));
         }
 
-        if (!$this->check_rate_limit($page_id)) {
+        if (!$dry_run && !$this->check_rate_limit($page_id)) {
             return new WP_Error('rate_limited', 'Trop d\'écritures sur cette page (10/60s max). Réessayez plus tard.', array('status' => 429));
         }
 
@@ -329,6 +361,17 @@ class HWC_REST_API {
         }
 
         $new_content = preg_replace($pattern, '', $current_content);
+
+        if ($dry_run) {
+            return new WP_REST_Response(array(
+                'success'  => true,
+                'dry_run'  => true,
+                'page_id'  => $page_id,
+                'module'   => $module,
+                'block_id' => $block_id,
+                'message'  => 'DRY RUN (aucune écriture) : bloc prêt à être retiré.',
+            ), 200);
+        }
 
         wp_save_post_revision($page_id);
 
@@ -395,19 +438,20 @@ class HWC_REST_API {
         $ref = isset($params['ref']) ? sanitize_text_field($params['ref']) : null;
         $new_content = isset($params['new_content']) ? wp_kses_post($params['new_content']) : '';
         $expected_hash = isset($params['expected_hash']) ? sanitize_text_field($params['expected_hash']) : null;
+        $dry_run = self::dry_run($params);
 
         if (!$page_id || ($block_index === null && !$ref)) {
             return new WP_Error('bad_request', 'page_id et (block_index ou ref) requis.', array('status' => 400));
         }
 
-        if (!$this->check_rate_limit($page_id)) {
+        if (!$dry_run && !$this->check_rate_limit($page_id)) {
             return new WP_Error('rate_limited', 'Trop d\'écritures sur cette page (10/60s max). Réessayez plus tard.', array('status' => 429));
         }
 
         $before = get_post($page_id);
         $before_md5 = $before ? md5($before->post_content) : '';
 
-        $result = HWC_Block_Editor::update_block_content($page_id, $block_index, $new_content, $ref, $expected_hash);
+        $result = HWC_Block_Editor::update_block_content($page_id, $block_index, $new_content, $ref, $expected_hash, $dry_run);
         if (!$result['success']) {
             if (isset($result['error']) && $result['error'] === 'conflict') {
                 return new WP_Error('error_conflict', $result['message'], array('status' => 409));
@@ -416,8 +460,10 @@ class HWC_REST_API {
             return new WP_Error('update_failed', $result['message'], array('status' => $status));
         }
 
-        $after = get_post($page_id);
-        self::audit_log('update_block', array('page_id' => $page_id, 'block_index' => $block_index, 'ref' => $ref, 'content_md5' => $before_md5), array('page_id' => $page_id, 'content_md5' => $after ? md5($after->post_content) : ''));
+        if (!$dry_run) {
+            $after = get_post($page_id);
+            self::audit_log('update_block', array('page_id' => $page_id, 'block_index' => $block_index, 'ref' => $ref, 'content_md5' => $before_md5), array('page_id' => $page_id, 'content_md5' => $after ? md5($after->post_content) : ''));
+        }
 
         return new WP_REST_Response($result, 200);
     }
@@ -437,6 +483,7 @@ class HWC_REST_API {
         $anchor_ref  = isset($params['anchor_ref']) ? sanitize_text_field($params['anchor_ref']) : null;
         $anchor_index = isset($params['anchor_index']) ? intval($params['anchor_index']) : null;
         $module      = isset($params['module']) ? sanitize_text_field($params['module']) : '';
+        $dry_run = self::dry_run($params);
 
         if (!$page_id || empty($block_name)) {
             return new WP_Error('bad_request', 'page_id et block_name requis.', array('status' => 400));
@@ -469,14 +516,14 @@ class HWC_REST_API {
             // "end" => aucun index => append (comportement par défaut)
         }
 
-        if (!$this->check_rate_limit($page_id)) {
+        if (!$dry_run && !$this->check_rate_limit($page_id)) {
             return new WP_Error('rate_limited', 'Trop d\'écritures sur cette page (10/60s max). Réessayez plus tard.', array('status' => 429));
         }
 
         $before = get_post($page_id);
         $before_md5 = $before ? md5($before->post_content) : '';
 
-        $result = HWC_Block_Editor::create_block($page_id, $block_name, $content, $insert_after_index, $insert_before_index, $module, $expected_hash);
+        $result = HWC_Block_Editor::create_block($page_id, $block_name, $content, $insert_after_index, $insert_before_index, $module, $expected_hash, $dry_run);
         if (!$result['success']) {
             if (isset($result['error']) && $result['error'] === 'conflict') {
                 return new WP_Error('error_conflict', $result['message'], array('status' => 409));
@@ -484,8 +531,10 @@ class HWC_REST_API {
             return new WP_Error('create_failed', $result['message'], array('status' => 400));
         }
 
-        $after = get_post($page_id);
-        self::audit_log('create_block', array('page_id' => $page_id, 'block_name' => $block_name, 'position' => $position, 'anchor_ref' => $anchor_ref, 'content_md5' => $before_md5), array('page_id' => $page_id, 'ref' => $result['ref'], 'content_md5' => $after ? md5($after->post_content) : ''));
+        if (!$dry_run) {
+            $after = get_post($page_id);
+            self::audit_log('create_block', array('page_id' => $page_id, 'block_name' => $block_name, 'position' => $position, 'anchor_ref' => $anchor_ref, 'content_md5' => $before_md5), array('page_id' => $page_id, 'ref' => $result['ref'], 'content_md5' => $after ? md5($after->post_content) : ''));
+        }
 
         return new WP_REST_Response($result, 201);
     }
@@ -497,19 +546,20 @@ class HWC_REST_API {
         $block_index = isset($params['block_index']) ? intval($params['block_index']) : null;
         $ref = isset($params['ref']) ? sanitize_text_field($params['ref']) : null;
         $expected_hash = isset($params['expected_hash']) ? sanitize_text_field($params['expected_hash']) : null;
+        $dry_run = self::dry_run($params);
 
         if (!$page_id || ($block_index === null && !$ref)) {
             return new WP_Error('bad_request', 'page_id et (block_index ou ref) requis.', array('status' => 400));
         }
 
-        if (!$this->check_rate_limit($page_id)) {
+        if (!$dry_run && !$this->check_rate_limit($page_id)) {
             return new WP_Error('rate_limited', 'Trop d\'écritures sur cette page (10/60s max). Réessayez plus tard.', array('status' => 429));
         }
 
         $before = get_post($page_id);
         $before_md5 = $before ? md5($before->post_content) : '';
 
-        $result = HWC_Block_Editor::delete_block($page_id, $block_index, $ref, $expected_hash);
+        $result = HWC_Block_Editor::delete_block($page_id, $block_index, $ref, $expected_hash, $dry_run);
         if (!$result['success']) {
             if (isset($result['error']) && $result['error'] === 'conflict') {
                 return new WP_Error('error_conflict', $result['message'], array('status' => 409));
@@ -517,8 +567,47 @@ class HWC_REST_API {
             return new WP_Error('delete_failed', $result['message'], array('status' => 404));
         }
 
-        $after = get_post($page_id);
-        self::audit_log('delete_block', array('page_id' => $page_id, 'block_index' => $block_index, 'ref' => $ref, 'content_md5' => $before_md5), array('page_id' => $page_id, 'content_md5' => $after ? md5($after->post_content) : ''));
+        if (!$dry_run) {
+            $after = get_post($page_id);
+            self::audit_log('delete_block', array('page_id' => $page_id, 'block_index' => $block_index, 'ref' => $ref, 'content_md5' => $before_md5), array('page_id' => $page_id, 'content_md5' => $after ? md5($after->post_content) : ''));
+        }
+
+        return new WP_REST_Response($result, 200);
+    }
+
+    public function batch_update_blocks($request) {
+        $params = $request->get_params();
+
+        $page_id = intval($params['page_id'] ?? 0);
+        $updates = isset($params['updates']) ? $params['updates'] : null;
+        $expected_hash = isset($params['expected_hash']) ? sanitize_text_field($params['expected_hash']) : null;
+        $dry_run = self::dry_run($params);
+
+        if (!$page_id || !is_array($updates)) {
+            return new WP_Error('bad_request', 'page_id et updates (tableau) requis.', array('status' => 400));
+        }
+
+        // Le batch = UNE écriture rate limit (all-or-nothing), jamais consommée en dry_run.
+        if (!$dry_run && !$this->check_rate_limit($page_id)) {
+            return new WP_Error('rate_limited', 'Trop d\'écritures sur cette page (10/60s max). Réessayez plus tard.', array('status' => 429));
+        }
+
+        $before = get_post($page_id);
+        $before_md5 = $before ? md5($before->post_content) : '';
+
+        $result = HWC_Block_Editor::batch_update_blocks($page_id, $updates, $expected_hash, $dry_run);
+        if (!$result['success']) {
+            if (isset($result['error']) && $result['error'] === 'conflict') {
+                return new WP_Error('error_conflict', $result['message'], array('status' => 409));
+            }
+            $status = strpos($result['message'], 'introuvable') !== false ? 404 : 400;
+            return new WP_Error('batch_failed', $result['message'], array('status' => $status));
+        }
+
+        if (!$dry_run) {
+            $after = get_post($page_id);
+            self::audit_log('batch_update_blocks', array('page_id' => $page_id, 'count' => count($updates), 'content_md5' => $before_md5), array('page_id' => $page_id, 'count' => $result['count'], 'content_md5' => $after ? md5($after->post_content) : ''));
+        }
 
         return new WP_REST_Response($result, 200);
     }
