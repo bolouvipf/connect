@@ -39,6 +39,8 @@ export async function dispatch(method: string, params: Record<string, unknown>, 
       return updateBlocks(params, userId)
     case 'delete_block':
       return deleteBlock(params, userId)
+    case 'transform_block':
+      return transformBlock(params, userId)
     case 'get_wp_menus':
       return getWpMenus(userId)
     case 'list_connected_sites':
@@ -907,6 +909,31 @@ async function deleteBlock(params: Record<string, unknown>, userId: string) {
   })
 }
 
+async function transformBlock(params: Record<string, unknown>, userId: string) {
+  const { site_id, page_id, target_block_name } = params
+  if (!site_id) return { success: false, error: 'site_id requis (obtenez-le via list_connected_sites)' }
+  if (!page_id) return { success: false, error: 'page_id requis' }
+  if (!target_block_name) return { success: false, error: 'target_block_name requis (ex: core/heading)' }
+  if (!requireOneOf(params, ['ref', 'block_index'])) {
+    return { success: false, error: 'ref ou block_index requis' }
+  }
+
+  const site = await resolveSite(site_id, userId)
+  if (!site) return { success: false, error: 'site_id invalide ou site non autorisé' }
+
+  return pluginRequest(site, '/blocks/transform', {
+    method: 'POST',
+    body: {
+      page_id,
+      ref: params.ref ? String(params.ref) : undefined,
+      block_index: params.block_index !== undefined && params.block_index !== '' ? String(params.block_index) : undefined,
+      target_block_name: String(target_block_name),
+      expected_hash: params.expected_hash ? String(params.expected_hash) : undefined,
+      dry_run: boolParam(params, 'dry_run'),
+    },
+  })
+}
+
 async function getWpMenus(userId: string) {
   const { data: sites } = await supabase()
     .from('connected_sites')
@@ -1164,6 +1191,7 @@ export const ALLOWED_METHODS = [
   'update_block_content',
   'update_blocks',
   'delete_block',
+  'transform_block',
   'get_wp_menus',
   'list_connected_sites',
   'export_to_wordpress',

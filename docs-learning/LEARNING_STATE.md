@@ -48,6 +48,8 @@ Mise à jour à chaque session. Checklist globale du Script 2.
 - [x] Agents opencode configurés (globaux) : `analyste` + `relecteur` sur Gemini 3.6 flash gratuit (provider google, `{env:GEMINI_API_KEY}`) + clé enregistrée en variable utilisateur — redémarrage opencode requis
 - [x] Vérif sécurité clés : GEMINI/OPENROUTER absentes de tout historique git (connect public + houetor privé), recherche GitHub 0 résultat, `.env.learning` jamais commité — 2026-08-01
 - [ ] Prioriser avec l'utilisateur les évolutions inspirées de block-mcp (ops structurelles, compte agent WP, tier policy, PHPUnit)
+- [x] Évolutions roadmap validées (mix options 1+5, « vas-y ») : **rétention audit + auto-transform** livrées — plugin+MCP **2.5.0** (V3 32/32, rétention 9/9, transform 21/21, unitaires 29/29, intégration 33/33, scénarios 26/26), commits `7ad5659`/`9b550ad`/`bd99f61`/`e8f9eef`/`744e268` + docs (Exp 012, série 004)
+- [ ] Push final des commits locaux 2.5.0 sur `opencode-learning` (vérifier `git status` propre après push)
 - [ ] (En attente utilisateur) Audit de `houetor-selfhare`
 
 ## Rappels de procédure
@@ -89,28 +91,34 @@ Le lab `houetor-mcp/` est un **miroir testé** du MCP : mêmes patterns (route/t
 
 **Règles rappel** : jamais `main` ; `.env.learning` + token jamais commités (env vars du MCP : `WORDPRESS_URL`, `HOUETOR_TOKEN`) ; tests isolés avant affirmation ; `php -l` avant commit ; zip en `/`.
 
-## Point de reprise — Session 2026-08-01 (Phase 4 portage préparé dans le lab)
+## Point de reprise — Session 2026-08-01 (2.5.0 : rétention audit + transform_block livrés, push final)
 
-**Tout est commité et pushé** (`opencode-learning` synchro avec origin, working tree propre).
+**État** : évolutions roadmap (mix options 1+5) terminées — plugin+MCP **2.5.0**, portage enrichi, docs à jour. Reste : push des commits locaux (voir `git status` en début de session) puis tout est synchro.
 
 | Élément | État |
 |---|---|
-| **Phase 4 mission — portage `app/mcp/` (dans le lab)** | ✅ `houetor-mcp/portage-app-mcp/` : `original/` (copie brute prod) + `src/` (error-translator.ts + tools.ts +6 tools & inject étendu + dispatch.ts +6 méthodes & helpers resolveSite/pluginRequest + ALLOWED_METHODS) — **typecheck `npx tsc --noEmit` 0 erreur vs types réels prod** (junction node_modules + tsconfig `@/*` → repo prod) ; `route.ts`/`parser.ts` inchangés ; **déploiement dans le repo prod EN ATTENTE de validation utilisateur** (prérequis plugin clients ≥ 2.3.0 / 2.4.0 pour batch+dry_run) |
-| **Agents opencode (globaux)** | ✅ `~/.config/opencode/agents/analyste.md` + `relecteur.md` (mode subagent, Gemini 3.6 flash gratuit) ; provider `google` avec `{env:GEMINI_API_KEY}` dans `opencode.jsonc` ; clé enregistrée variable utilisateur (SetEnvironmentVariable) ; appel Gemini testé OK — **redémarrage opencode requis** pour activer |
-| **Sécurité clés** | ✅ Gemini + OpenRouter absentes : historique git complet `connect` (public) et `houetor` (privé), recherche GitHub repo + mondiale 0 résultat, `.env.learning` jamais commité |
-| Env de test | ✅ Propre (page 2 = 5 blocs, md5 d'origine `592dfd9742814297172c5f516bcd40e3`), serveur :8888 WSL actif via **service systemd `wp-dev-server`** (auto-restart, survit aux redémarrages WSL), plugin 2.4.0 actif |
+| **Étape A — Rétention audit** (commit `7ad5659`) | ✅ `HWC_REST_API::audit_cleanup()` : option `hwc_audit_retention_days` (défaut 90, filtre `hwc_audit_retention_days`), purge chunkée 500×200 max, CRON quotidien `hwc_audit_cleanup` (activate/deactivate) — test lab **9/9 PASS** |
+| **Étape B — Transform** (commit `9b550ad`) | ✅ Refactor `class-block-editor.php` : const `ALLOWED_BLOCKS`/`TEXT_BLOCKS` (7 blocs texte), helpers partagés `build_block()`/`wrap_ref()` (bug `wrap_ref` → null corrigé), `transform_block()` (refus imbriqué/hors whitelist, ref HWC conservée, level heading préservé, dry_run, révision, CAS) ; route `POST /houetor/v1/blocks/transform` — test lab **21/21 PASS** |
+| **Étape C — MCP miroir** (commit `bd99f61`) | ✅ Tool `transform_block` (client+tools+dispatch, ref OU block_index, dry_run) — unitaires **29/29**, intégration **33/33**, scénario S7 → **26/26** (`mirror-suite.sh` vert) |
+| **Étape D — Lockstep 2.5.0** (commits `e8f9eef` + `744e268`) | ✅ Versions (header `Version:` + `HWC_VERSION` + package.json MCP) ; **zip reconstruit** avec niveau unique corrigé (le zip 2.4.0 avait une double imbrication `houetor-connect/houetor-connect/`) ; portage enrichi (`transform_block` : tools.ts + dispatch.ts + ALLOWED_METHODS) — **typecheck 0 erreur vs types prod** ; README miroir + portage à jour ; docs (Exp 012, T-SERIE 004, LEARNING_STATE) |
+| **Phase 4 mission — portage `app/mcp/` (dans le lab)** | ✅ `houetor-mcp/portage-app-mcp/` : `original/` + `src/` (error-translator.ts + **7 tools** + dispatch **7 méthodes** + helpers resolveSite/pluginRequest + ALLOWED_METHODS) — **typecheck 0 erreur** (tsc depuis WINDOWS : baseUrl `C:/…` du tsconfig non résolue sous WSL) ; **déploiement prod EN ATTENTE de validation utilisateur** (prérequis plugin clients ≥ 2.3.0/2.4.0/2.5.0) |
+| **Agents opencode (globaux)** | ✅ `analyste` + `relecteur` (Gemini 3.6 flash, provider google `{env:GEMINI_API_KEY}`) — **redémarrage opencode requis** pour activer |
+| **Sécurité clés** | ✅ Gemini + OpenRouter absentes de tout historique git, `.env.learning` jamais commité |
+| Env de test | ✅ Serveur :8888 via service systemd `wp-dev-server` ; plugin lab **2.5.0** actif ; page 2 md5 d'origine `ce833acf933c17dd97eef071665b6269` (187 révisions) |
 
 **Découvertes session** :
-- `/inject` du plugin accepte `position` = `prepend|append|replace` (défaut append) — PAS start/end (réservés à `create_block`) ; `module` obligatoire.
-- Le repo prod `Pictures\Screenshots\houetor` est un repo git privé `bolouvipf/houetor` (pas `connect`) — prod MCP : 21 tools, dispatch 966 lignes, aucun CRUD bloc.
-- `gh search code` : 0 résultat pour fragments de 28 caractères des 2 clés (recherche repo + mondiale).
+- Le rate limit compte TOUTES les tentatives (400/409 inclus) → reset `delete_transient('hwc_ratelimit_2')` entre batteries ; budget intégration = 10 écritures exactement.
+- Le refus CAS précède le dry_run → un `dry_run` + mauvais hash renvoie 409 (teste la traduction sans consommer de budget).
+- `git archive` SANS `--prefix` (le dossier repo `houetor-connect/` fournit déjà le niveau plugin) ; le zip 2.4.0 committé était mal imbriqué.
+- tsc du portage : lancer depuis Windows (junction node_modules + baseUrl Windows), pas sous WSL.
+- Page 2 : bloc natif #4 = quote imbriqué → sert au test de refus imbriqué (T10).
 
-**Pour reprendre** : AGENTS.md auto-chargé au démarrage. Lire `ONBOARDING.md` (§1-8) puis `docs-learning/LEARNING_STATE.md` puis `EXPERIMENTS_LOG.md` Exp 011. **Rappel d'objectif** : chaque demande CRUD d'un utilisateur doit s'exécuter sans erreur (contrat de qualité détaillé en ONBOARDING §1). **Prochaine action : déploiement Phase 4** — après validation utilisateur, copier `houetor-mcp/portage-app-mcp/src/*.ts` vers `app/mcp/` du repo prod, `npx tsc --noEmit` + `npm run lint`, commit dédié ; sinon évolutions roadmap block-mcp (ops structurelles, compte agent WP moindre privilège, tier policy, PHPUnit, auto-transforms).
+**Pour reprendre** : AGENTS.md auto-chargé. Lire `ONBOARDING.md` (§1-8) puis `LEARNING_STATE.md` puis `EXPERIMENTS_LOG.md` Exp 012. **Rappel d'objectif** : chaque demande CRUD d'un utilisateur doit s'exécuter sans erreur (ONBOARDING §1). **Prochaine action** : `git status` → si commits locaux non poussés (7ad5659, 9b550ad, bd99f61, e8f9eef, 744e268, docs), `git push origin opencode-learning` ; puis au choix utilisateur : déploiement Phase 4 (copie `portage-app-mcp/src/*.ts` vers `app/mcp/` prod, tsc + lint, commit dédié) ou nouvelles évolutions roadmap block-mcp (ops structurelles, compte agent WP moindre privilège, tier policy, PHPUnit).
 
 **Commandes MCP utiles** (dans WSL, depuis `houetor-mcp/`) :
 ```bash
-bash scripts/mirror-suite.sh        # suite complète: 24 unitaires + 28 intégration + 24 scénarios (lit le token seul, reset rate limit)
-npm test                            # 24 unitaires seuls
+bash scripts/mirror-suite.sh        # suite complète: 29 unitaires + 33 intégration + 26 scénarios (lit le token seul, reset rate limit)
+npm test                            # 29 unitaires seuls
 ```
 Relance du serveur WP lab si tombé : `wsl -u root -e bash -c "systemctl restart wp-dev-server"` (service systemd créé le 2026-08-01 car `setsid nohup wp server` meurt avec la session WSL).
 

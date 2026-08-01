@@ -89,3 +89,29 @@ Voir historique : 18 tests (auth 403, parsing, create positionnel, PATCH, révis
 **Découvertes** :
 - Le bloc natif #1 de la page 2 est un `core/quote` avec blocs imbriqués → refusé par design (« blocs imbriqués ») : le scénario cible le bloc #0 (paragraph). Comportement attendu et déjà couvert par V3-6.
 - La restauration d'un bloc via `update_block_content`/batch repasse par `wp_kses_post` → sérialisation reformatée (md5 différent du contenu d'origine) ; la restauration EXACTE se fait par restauration de révision (wp eval-file).
+
+## T-SERIE 004 — Plugin 2.5.0 : rétention audit + transform_block + MCP miroir — 2026-08-01
+
+**Méthode :** trois batteries plugin `wp eval-file` (lab) + suite `mirror-suite.sh` (miroir MCP).
+
+### Batterie rétention — `rest-test-retention.php` : **9/9 PASS**
+| Test | Résultat |
+|---|---|
+| RET-A option par défaut = 90 jours | PASS |
+| RET-B filtre `hwc_audit_retention_days` = 30 → limite 30 | PASS |
+| RET-C option 0 → rétention désactivée (0 supprimé) | PASS |
+| Purge par chunks (DELETE LIMIT 500, max 200 itérations), audit table intègre | PASS |
+
+### Batterie transform — `rest-test-transform.php` : **21/21 PASS** (extraits)
+- T1-T3 : transform paragraph → heading par ref avec CAS frais → 200 + `target_block_name`, ref HWC **conservée** ; relecture confirme `core/heading`.
+- T4 : `level` conservé quand source = heading (heading → paragraph → heading).
+- T5-T6 : ref inexistante → 404 « introuvable » ; `block_index` hors borne → 404.
+- T7-T8 : source ciblée mais imbriquée (quote natif #4) → 400 « imbriqué » ; source hors whitelist (`core/image`) → 400.
+- T9 : cible hors whitelist → 400 ; T10 : cible = `core/paragraph` depuis imbriqué → 400.
+- T11 : dry_run → aucune écriture/révision/audit, `dry_run:true`.
+- T12-T21 : params manquants → 400 ; rate limit 429 (sauf dry_run) ; audit `transform_block` dans `houetor_connect_actions_log`.
+
+### Miroir MCP — suite `mirror-suite.sh` : **29 unitaires / 33 intégration / 26 scénarios PASS**
+- Intégration : transform paragraph→heading (CAS chaîné après écritures), CAS périmé **en dry_run** → 409 traduit (le refus CAS précède le dry_run côté plugin), cible media en dry_run → 400 traduit, retour heading→paragraph.
+- Scénario **S7** « Transforme le bloc avantage en titre » : `transform_block` → 200, relecture confirme `core/heading`, ref conservée → PASS ; SSE liste `transform_block`.
+- Découverte : le rate limit compte toutes les tentatives (400/409) → reset `delete_transient('hwc_ratelimit_2')` entre batteries ; budget intégration = 10 écritures exactement.
