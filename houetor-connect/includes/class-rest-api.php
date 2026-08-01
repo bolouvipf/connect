@@ -565,6 +565,14 @@ class HWC_REST_API {
             if (isset($result['error']) && $result['error'] === 'conflict') {
                 return new WP_Error('error_conflict', $result['message'], array('status' => 409));
             }
+            if (isset($result['error']) && $result['error'] === 'legacy') {
+                // Tier policy : bloc legacy/obsolète refusé avec remplacement suggéré
+                return new WP_Error('block_legacy', $result['message'], array(
+                    'status'          => 400,
+                    'block_name'      => $result['block_name'],
+                    'suggested_block' => $result['suggested_block'],
+                ));
+            }
             return new WP_Error('create_failed', $result['message'], array('status' => 400));
         }
 

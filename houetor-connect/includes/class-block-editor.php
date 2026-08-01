@@ -77,6 +77,48 @@ class HWC_Block_Editor {
     ];
 
     /**
+     * Tier policy (inspirée de block-mcp, Exp 008) : blocs legacy/obsolètes
+     * refusés à la création, avec le bloc ALLOWED suggéré à la place.
+     * L'erreur devient actionnable : l'agent recrée le bloc avec la suggestion
+     * au lieu de bloquer sur un refus muet. Filtrable via hwc_legacy_blocks.
+     */
+    const LEGACY_BLOCKS = [
+        'core/cover-image'  => 'core/cover',
+        'core/subheading'   => 'core/heading',
+        'core/list-item'    => 'core/list',
+        'core/verse'        => 'core/preformatted',
+        'core/html'         => 'core/paragraph',
+        'core/embed'        => 'core/video',
+        'core/shortcode'    => 'core/paragraph',
+        'core/spacer'       => 'core/group',
+        'core/separator'    => 'core/group',
+        'core/search'       => 'core/paragraph',
+        'core/archives'     => 'core/list',
+        'core/categories'   => 'core/list',
+        'core/tag-cloud'    => 'core/list',
+        'core/rss'          => 'core/list',
+        'core/calendar'     => 'core/table',
+        'core/social-links' => 'core/buttons',
+        'core/post-title'   => 'core/heading',
+        'core/post-content' => 'core/paragraph',
+        'core/latest-posts' => 'core/list',
+        'core/query'        => 'core/group',
+        'core/nextpage'     => 'core/group',
+    ];
+
+    /**
+     * Tier policy : retourne le bloc ALLOWED suggéré pour un bloc legacy
+     * ($block_name), ou null si le bloc n'est pas dans la map (refus générique).
+     */
+    public static function legacy_suggestion($block_name) {
+        $map = apply_filters('hwc_legacy_blocks', self::LEGACY_BLOCKS);
+        if (!is_array($map)) {
+            $map = self::LEGACY_BLOCKS;
+        }
+        return isset($map[$block_name]) ? $map[$block_name] : null;
+    }
+
+    /**
      * Construit le bloc (structure parse_blocks) à partir du nom et du contenu
      * texte. Logique partagée par create_block et transform_block.
      * $attrs permet de préserver des attributs (ex. level du heading).
@@ -433,6 +475,16 @@ class HWC_Block_Editor {
         }
 
         if (!in_array($block_name, self::ALLOWED_BLOCKS, true)) {
+            $suggested = self::legacy_suggestion($block_name);
+            if ($suggested !== null) {
+                return [
+                    'success'         => false,
+                    'error'           => 'legacy',
+                    'block_name'      => $block_name,
+                    'suggested_block' => $suggested,
+                    'message'         => "Bloc $block_name obsolète ou non supporté à la création. Utilisez $suggested à la place (même contenu, bloc supporté).",
+                ];
+            }
             return ['success' => false, 'message' => "Type de bloc non supporté : $block_name."];
         }
 
