@@ -56,6 +56,116 @@ class HWC_Block_Editor {
     const BATCH_MAX_UPDATES = 50;
 
     /**
+     * Types de blocs supportés à la création (create_block).
+     */
+    const ALLOWED_BLOCKS = [
+        'core/paragraph', 'core/heading', 'core/list', 'core/image',
+        'core/button', 'core/buttons', 'core/group', 'core/columns',
+        'core/column', 'core/quote', 'core/code', 'core/preformatted',
+        'core/pullquote', 'core/table', 'core/cover', 'core/media-text',
+        'core/video', 'core/file', 'core/gallery', 'core/audio',
+    ];
+
+    /**
+     * Types de blocs transformables (contenu purement textuel, aucun média).
+     * Restriction volontaire : une conversion vers image/button/table/columns…
+     * ne peut pas préserver le contenu de façon fiable.
+     */
+    const TEXT_BLOCKS = [
+        'core/paragraph', 'core/heading', 'core/quote', 'core/list',
+        'core/code', 'core/preformatted', 'core/pullquote',
+    ];
+
+    /**
+     * Construit le bloc (structure parse_blocks) à partir du nom et du contenu
+     * texte. Logique partagée par create_block et transform_block.
+     * $attrs permet de préserver des attributs (ex. level du heading).
+     */
+    private static function build_block($block_name, $content, $attrs = []) {
+        if ($block_name === 'core/heading') {
+            $level = isset($attrs['level']) ? intval($attrs['level']) : 2;
+            $text = wp_strip_all_tags($content);
+            $new_block = [
+                'blockName'    => 'core/heading',
+                'attrs'        => ['level' => $level, 'content' => $text],
+                'innerHTML'    => "<h$level>" . esc_html($text) . "</h$level>",
+                'innerContent' => ["<h$level>" . esc_html($text) . "</h$level>"],
+            ];
+        } elseif ($block_name === 'core/paragraph') {
+            $new_block = [
+                'blockName'    => 'core/paragraph',
+                'attrs'        => [],
+                'innerHTML'    => '<p>' . wp_kses_post($content) . '</p>',
+                'innerContent' => ['<p>' . wp_kses_post($content) . '</p>'],
+            ];
+        } elseif ($block_name === 'core/list') {
+            $items = '';
+            $lines = explode("\n", $content);
+            foreach ($lines as $line) {
+                $line = trim($line);
+                if (!empty($line)) {
+                    $items .= '<li>' . esc_html($line) . '</li>';
+                }
+            }
+            $new_block = [
+                'blockName'    => 'core/list',
+                'attrs'        => [],
+                'innerHTML'    => '<ul class="wp-block-list">' . $items . '</ul>',
+                'innerContent' => ['<ul class="wp-block-list">' . $items . '</ul>'],
+            ];
+        } elseif ($block_name === 'core/image') {
+            $new_block = [
+                'blockName'    => 'core/image',
+                'attrs'        => ['url' => $content, 'alt' => ''],
+                'innerHTML'    => '<figure class="wp-block-image"><img src="' . esc_url($content) . '" alt=""/></figure>',
+                'innerContent' => ['<figure class="wp-block-image"><img src="' . esc_url($content) . '" alt=""/></figure>'],
+            ];
+        } elseif ($block_name === 'core/button') {
+            $new_block = [
+                'blockName'    => 'core/button',
+                'attrs'        => ['url' => '#', 'text' => wp_strip_all_tags($content)],
+                'innerHTML'    => '<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="#">' . esc_html(wp_strip_all_tags($content)) . '</a></div>',
+                'innerContent' => ['<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="#">' . esc_html(wp_strip_all_tags($content)) . '</a></div>'],
+            ];
+        } elseif ($block_name === 'core/quote') {
+            $new_block = [
+                'blockName'    => 'core/quote',
+                'attrs'        => [],
+                'innerHTML'    => '<blockquote class="wp-block-quote"><p>' . wp_kses_post($content) . '</p></blockquote>',
+                'innerContent' => ['<blockquote class="wp-block-quote"><p>' . wp_kses_post($content) . '</p></blockquote>'],
+            ];
+        } else {
+            $new_block = [
+                'blockName'    => $block_name,
+                'attrs'        => [],
+                'innerHTML'    => '<div>' . wp_kses_post($content) . '</div>',
+                'innerContent' => ['<div>' . wp_kses_post($content) . '</div>'],
+            ];
+        }
+        return $new_block;
+    }
+
+    /**
+     * Enrobe un bloc des marqueurs HWC (ref stable pour l'agent).
+     * Retourne la ref utilisée (ou null si $ref vide).
+     */
+    private static function wrap_ref($new_block, $ref) {
+        if (empty($ref)) {
+            return $new_block;
+        }
+        $marker_start = '<!-- HWC ' . $ref . ' start -->';
+        $marker_end = '<!-- HWC ' . $ref . ' end -->';
+        $new_block['innerHTML'] = $marker_start . $new_block['innerHTML'] . $marker_end;
+        $new_block['innerContent'] = array_map(function ($chunk) use ($marker_start, $marker_end) {
+            if (is_string($chunk)) {
+                return $marker_start . $chunk . $marker_end;
+            }
+            return $chunk;
+        }, $new_block['innerContent']);
+        return $new_block;
+    }
+
+    /**
      * Vérification CAS : expected_hash (md5 du post_content au moment de la lecture)
      * doit correspondre au contenu actuel. Null = vérification désactivée.
      */
@@ -322,83 +432,13 @@ class HWC_Block_Editor {
             return ['success' => false, 'error' => 'conflict', 'message' => 'Conflit de concurrence : le contenu de la page a changé depuis la lecture. Relancez get_page_blocks et repassez le expected_hash à jour.'];
         }
 
-        $allowed_blocks = [
-            'core/paragraph', 'core/heading', 'core/list', 'core/image',
-            'core/button', 'core/buttons', 'core/group', 'core/columns',
-            'core/column', 'core/quote', 'core/code', 'core/preformatted',
-            'core/pullquote', 'core/table', 'core/cover', 'core/media-text',
-            'core/video', 'core/file', 'core/gallery', 'core/audio',
-        ];
-
-        if (!in_array($block_name, $allowed_blocks, true)) {
+        if (!in_array($block_name, self::ALLOWED_BLOCKS, true)) {
             return ['success' => false, 'message' => "Type de bloc non supporté : $block_name."];
         }
 
         $blocks = parse_blocks($post->post_content);
 
-        if ($block_name === 'core/heading') {
-            $level = 2;
-            $text = wp_strip_all_tags($content);
-            $attrs = json_encode(['level' => $level, 'content' => $text], JSON_UNESCAPED_UNICODE);
-            $new_block = [
-                'blockName'    => 'core/heading',
-                'attrs'        => ['level' => $level, 'content' => $text],
-                'innerHTML'    => "<h$level>" . esc_html($text) . "</h$level>",
-                'innerContent' => ["<h$level>" . esc_html($text) . "</h$level>"],
-            ];
-        } elseif ($block_name === 'core/paragraph') {
-            $new_block = [
-                'blockName'    => 'core/paragraph',
-                'attrs'        => [],
-                'innerHTML'    => '<p>' . wp_kses_post($content) . '</p>',
-                'innerContent' => ['<p>' . wp_kses_post($content) . '</p>'],
-            ];
-        } elseif ($block_name === 'core/list') {
-            $items = '';
-            $lines = explode("\n", $content);
-            foreach ($lines as $line) {
-                $line = trim($line);
-                if (!empty($line)) {
-                    $items .= '<li>' . esc_html($line) . '</li>';
-                }
-            }
-            $new_block = [
-                'blockName'    => 'core/list',
-                'attrs'        => [],
-                'innerHTML'    => '<ul class="wp-block-list">' . $items . '</ul>',
-                'innerContent' => ['<ul class="wp-block-list">' . $items . '</ul>'],
-            ];
-        } elseif ($block_name === 'core/image') {
-            $attrs = ['url' => $content, 'alt' => ''];
-            $new_block = [
-                'blockName'    => 'core/image',
-                'attrs'        => $attrs,
-                'innerHTML'    => '<figure class="wp-block-image"><img src="' . esc_url($content) . '" alt=""/></figure>',
-                'innerContent' => ['<figure class="wp-block-image"><img src="' . esc_url($content) . '" alt=""/></figure>'],
-            ];
-        } elseif ($block_name === 'core/button') {
-            $attrs = ['url' => '#', 'text' => wp_strip_all_tags($content)];
-            $new_block = [
-                'blockName'    => 'core/button',
-                'attrs'        => $attrs,
-                'innerHTML'    => '<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="#">' . esc_html(wp_strip_all_tags($content)) . '</a></div>',
-                'innerContent' => ['<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="#">' . esc_html(wp_strip_all_tags($content)) . '</a></div>'],
-            ];
-        } elseif ($block_name === 'core/quote') {
-            $new_block = [
-                'blockName'    => 'core/quote',
-                'attrs'        => [],
-                'innerHTML'    => '<blockquote class="wp-block-quote"><p>' . wp_kses_post($content) . '</p></blockquote>',
-                'innerContent' => ['<blockquote class="wp-block-quote"><p>' . wp_kses_post($content) . '</p></blockquote>'],
-            ];
-        } else {
-            $new_block = [
-                'blockName'    => $block_name,
-                'attrs'        => [],
-                'innerHTML'    => '<div>' . wp_kses_post($content) . '</div>',
-                'innerContent' => ['<div>' . wp_kses_post($content) . '</div>'],
-            ];
-        }
+        $new_block = self::build_block($block_name, $content);
 
         // Enrobage HWC automatique si module fourni (spec 3.3 : ref stable pour l'agent)
         $ref = null;
@@ -406,15 +446,7 @@ class HWC_Block_Editor {
             $module = sanitize_title($module);
             $ref_id = substr(md5($page_id . '|' . $module . '|' . uniqid('', true)), 0, 12);
             $ref = $module . '-' . $ref_id;
-            $marker_start = '<!-- HWC ' . $ref . ' start -->';
-            $marker_end = '<!-- HWC ' . $ref . ' end -->';
-            $new_block['innerHTML'] = $marker_start . $new_block['innerHTML'] . $marker_end;
-            $new_block['innerContent'] = array_map(function ($chunk) use ($marker_start, $marker_end) {
-                if (is_string($chunk)) {
-                    return $marker_start . $chunk . $marker_end;
-                }
-                return $chunk;
-            }, $new_block['innerContent']);
+            $new_block = self::wrap_ref($new_block, $ref);
         }
 
         if ($insert_after_index !== null) {
@@ -458,6 +490,109 @@ class HWC_Block_Editor {
             'post_id'  => $updated,
             'ref'      => $ref,
             'message'  => "Bloc $block_name créé dans « {$post->post_title} »." . ($ref ? " Ref générée : $ref" : ''),
+        ];
+    }
+
+    /**
+     * Transforme un bloc (contenu texte préservé, type changé) en place.
+     * Uniquement entre types de la whitelist TEXT_BLOCKS ; la ref HWC du bloc
+     * source est conservée pour que les écritures suivantes de l'agent restent
+     * stables. CAS (expected_hash), dry_run, révision et audit identiques aux
+     * autres écritures.
+     */
+    public static function transform_block($page_id, $block_index = null, $ref = null, $target_block_name = '', $expected_hash = null, $dry_run = false) {
+        $post = get_post($page_id);
+        if (!$post) {
+            return ['success' => false, 'message' => 'Page introuvable.'];
+        }
+
+        if (!self::cas_check($post, $expected_hash)) {
+            return ['success' => false, 'error' => 'conflict', 'message' => 'Conflit de concurrence : le contenu de la page a changé depuis la lecture. Relancez get_page_blocks et repassez le expected_hash à jour.'];
+        }
+
+        $content = $post->post_content;
+        if (empty(trim($content))) {
+            return ['success' => false, 'message' => 'Le contenu de cette page est vide ou utilise un template.'];
+        }
+
+        if (!in_array($target_block_name, self::TEXT_BLOCKS, true)) {
+            return ['success' => false, 'message' => "Type de bloc non supporté pour la transformation : $target_block_name. Types de texte supportés : " . implode(', ', self::TEXT_BLOCKS) . '.'];
+        }
+
+        $blocks = parse_blocks($content);
+        $located = self::locate_block($blocks, $ref, $block_index);
+
+        if ($located === null) {
+            if ($ref !== null) {
+                return ['success' => false, 'message' => "Ref \"$ref\" introuvable sur la page $page_id (aucun bloc avec cette ref)."];
+            }
+            $total = 0;
+            foreach ($blocks as $b) { if (!empty($b['blockName'])) $total++; }
+            return ['success' => false, 'message' => "Bloc #$block_index introuvable (0-" . ($total - 1) . " disponible). Utilise get_page_blocks pour voir les indices valides."];
+        }
+
+        $target_idx = $located['idx'];
+        $target_ref = $located['ref'];
+        $source = $blocks[$target_idx];
+        $source_name = $source['blockName'];
+
+        if (!empty($source['innerBlocks'])) {
+            return ['success' => false, 'message' => "Le bloc $source_name ciblé contient des blocs imbriqués et ne peut pas être transformé directement."];
+        }
+
+        if (!in_array($source_name, self::TEXT_BLOCKS, true)) {
+            return ['success' => false, 'message' => "Bloc $source_name non transformable (blocs de texte uniquement : " . implode(', ', self::TEXT_BLOCKS) . ').'];
+        }
+
+        $text = self::extract_block_text($source);
+        if ($text === '') {
+            return ['success' => false, 'message' => "Le bloc source ($source_name) est vide — rien à transformer."];
+        }
+
+        $attrs = [];
+        if ($target_block_name === 'core/heading' && $source_name === 'core/heading' && isset($source['attrs']['level'])) {
+            $attrs['level'] = $source['attrs']['level'];
+        }
+
+        $new_block = self::build_block($target_block_name, $text, $attrs);
+        $new_block = self::wrap_ref($new_block, $target_ref);
+        $blocks[$target_idx] = $new_block;
+
+        $new_post_content = serialize_blocks($blocks);
+        $cible = $ref !== null ? "ref \"$ref\"" : "bloc #$block_index";
+
+        if ($dry_run) {
+            return [
+                'success'          => true,
+                'dry_run'          => true,
+                'post_id'          => $page_id,
+                'ref'              => $target_ref,
+                'block_index'      => $block_index,
+                'blockName'        => $source_name,
+                'target_blockName' => $target_block_name,
+                'message'          => "DRY RUN (aucune écriture) : transformation $source_name -> $target_block_name du $cible prête dans « {$post->post_title} ».",
+            ];
+        }
+
+        wp_save_post_revision($page_id);
+
+        $updated = wp_update_post([
+            'ID'           => $page_id,
+            'post_content' => wp_slash($new_post_content),
+        ], true);
+
+        if (is_wp_error($updated)) {
+            return ['success' => false, 'message' => $updated->get_error_message()];
+        }
+
+        return [
+            'success'          => true,
+            'post_id'          => $updated,
+            'ref'              => $target_ref,
+            'block_index'      => $block_index,
+            'blockName'        => $source_name,
+            'target_blockName' => $target_block_name,
+            'message'          => "Bloc $cible transformé ($source_name -> $target_block_name) dans « {$post->post_title} ».",
         ];
     }
 
