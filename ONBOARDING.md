@@ -91,21 +91,23 @@ Exécution type : `wsl -u root -e bash -c 'cd /mnt/c/Users/Kimsh/Desktop/lab/wor
 8. **Ne pas exposer de secrets** (clés, token, mots de passe) dans les docs ni dans les sorties de chat.
 9. **Preuve avant conclusion** : un comportement n'est vrai que s'il est testé et consigné en brut.
 
-## 8. État actuel (2026-08-02)
+## 8. État actuel (2026-08-02 — LAB CLÔTURÉ, mission portage exécutée)
 
 - **Version** : **2.7.0** (header + `HWC_VERSION` + stable tag + package.json MCP cohérents)
-- **Fonctionnalités livrées et testées** : ref HWC (marqueurs `<!-- HWC {module}-{ref} -->`), `expected_hash` CAS (409 `error_conflict`), rate limit 10 écritures/60s par page (429 `rate_limited`), table d'audit `{prefix}houetor_connect_actions_log` (before/after md5) **+ rétention** (option `hwc_audit_retention_days` défaut 90, CRON quotidien), `wp_save_post_revision()` avant toute écriture, `anchor_ref`/`anchor_index` (404 `anchor_not_found`), **batch atomique `update_blocks`** (N updates = 1 révision, all-or-nothing, max 50, 1 écriture rate limit), **`dry_run`** sur toutes les écritures (aucun effet ni budget consommé), **`transform_block`** (7 blocs texte, ref conservée), **tier policy** (blocs legacy refusés à la création → 400 `block_legacy` + `suggested_block`, map filtrable `hwc_legacy_blocks`), **ops structurelles** : `move_block` (start/end/before/after, no-op sans effet), `duplicate_block` (refs régénérées en profondeur), `wrap_block` (bloc/plage → core/group, plage inversée 400), `unwrap_block` (dégroupage, non-groupe 400) — tous CAS + dry_run + révision + audit + 1 écriture rate limit
-- **Scores de preuve (2.7.0)** : plugin — structural 42/42, V3 32/32, rétention 9/9, transform 21/21, tier policy 11/11 ; MCP miroir — 42/42 unitaires, 52/52 intégration, 41/41 scénarios ; portage `app/mcp/` — typecheck 0 erreur (déploiement prod en attente de validation utilisateur)
-- **Env propre** : page 2 restaurée (md5 d'origine `c4abdffec12763597022af2da35cd47c`)
-- **Git** : `opencode-learning` (commits 2.7.0 + docs — vérifier le push en début de session)
+- **Clôture lab** : `opencode-learning` fusionnée dans `main` (connect) — les 2 branches = `08c6199`, poussées
+- **Portage production** : branche `mcp-block-crud-2.7.0` du repo `houetor` (`fc91bd5` : tools.ts +155, dispatch.ts +435/-41, error-translator.ts nouveau ; route.ts/parser.ts intacts ; tsc 0 erreur ; lint app/mcp 0 erreur) — **PAS de merge dans main houetor** ; zip 2.7.0 dans `houetor/outputs/` (sha256 `AA7E89A8…`)
+- **E2E site neuf** : TasteWP « Fix Day » (https://fixday.s6-tastewp.com), plugin 2.7.0 actif, 6 scénarios PASS (CAS 409, ancre 404, wrap 400, dry_run sans effet)
+- **Scores de preuve (2.7.0)** : plugin — structural 42/42, V3 32/32, rétention 9/9, transform 21/21, tier policy 11/11 ; MCP miroir — 42/42 unitaires, 52/52 intégration, 41/41 scénarios
+- **Git** : connect `main` = `opencode-learning` = `08c6199` (poussés) ; houetor `mcp-block-crud-2.7.0` = `fc91bd5` (poussé)
+- **Reste (actions utilisateur)** : connexion Fix Day au dashboard HOUETOR ; merge/rollout `mcp-block-crud-2.7.0` ; `ghjk.py` + `probe-*.mjs` ; audit selfhare (hors périmètre)
 
 ## 9. Prochaines étapes possibles (roadmap)
 
 1. Tests HTTP externes (depuis Windows) — bloqué pare-feu Hyper-V, non prioritaire
-2. Évolutions inspirées de l'analyse de `block-mcp` (GravityKit) — voir `EXPERIMENTS_LOG.md` : ✅ batch atomique `update_blocks`, ✅ `dry_run`, ✅ auto-transforms (`transform_block`), ✅ rétention audit, ✅ **tier policy** (2.6.0), ✅ **ops structurelles move/duplicate/wrap/unwrap** (2.7.0) ; restants : compte agent dédié à moindre privilège (Application Passwords), rate limit rewrites séparé, tests PHPUnit automatisés
-3. Audit de `houetor-selfhare` (2e plugin) — **en attente : ne pas y toucher sans validation utilisateur explicite**
-4. Scénarios utilisateur réels (demandes typiques → routes exactes)
-5. **Déploiement Phase 4** : copie `houetor-mcp/portage-app-mcp/src/*.ts` vers `app/mcp/` prod (11 tools bloc, typecheck 0 erreur) — en attente de validation utilisateur (prérequis plugin clients ≥ 2.7.0)
+2. **Actions utilisateur post-mission** : connexion du site Fix Day au dashboard HOUETOR (connected_sites — prérequis MCP prod) ; merge/rollout `mcp-block-crud-2.7.0` (décision utilisateur) ; décision `ghjk.py` (D non commité dans houetor) + 3 `probe-*.mjs` untracked lab
+3. Évolutions inspirées de l'analyse de `block-mcp` (GravityKit) — restants : compte agent dédié à moindre privilège (Application Passwords), rate limit rewrites séparé, tests PHPUnit automatisés
+4. Audit de `houetor-selfhare` (2e plugin) — **en attente : ne pas y toucher sans validation utilisateur explicite**
+5. Nettoyage lint global `houetor` : 62 erreurs pré-existantes hors `app/mcp/` (état de main, chantier séparé)
 
 ## 10. Dépannage
 
