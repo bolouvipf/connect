@@ -1,0 +1,459 @@
+/* ── SelfHare Admin ── */
+#houetor-selfhare-chat {
+  margin-top: 20px;
+  max-width: 800px;
+}
+
+#houetor-selfhare-chat .houetor-message {
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  line-height: 1.5;
+  font-size: 14px;
+  animation: fadeUp 0.25s ease;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+#houetor-selfhare-chat .houetor-message.user {
+  background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+  text-align: right;
+  border-left: none;
+  border-right: 3px solid #1976d2;
+  color: #0d3c6b;
+}
+
+#houetor-selfhare-chat .houetor-message.assistant,
+#houetor-selfhare-chat .houetor-message.system {
+  background: #fff;
+  border-left: 3px solid #7c4dff;
+  color: #1a1a2e;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+#houetor-selfhare-chat .houetor-message.error {
+  background: #fce4ec;
+  border-left: 3px solid #e53935;
+  color: #b71c1c;
+}
+
+#houetor-selfhare-chat .houetor-message.result {
+  background: #e8f5e9;
+  border-left: 3px solid #43a047;
+  color: #1b5e20;
+}
+
+#houetor-selfhare-chat #houetor-selfhare-messages {
+  scroll-behavior: smooth;
+  background: #f8f9fc;
+  border: 1px solid #e0e3eb;
+  border-radius: 12px;
+  padding: 16px;
+  min-height: 300px;
+  max-height: 500px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+#houetor-selfhare-tool {
+  border: 1px solid #e0e3eb;
+  border-radius: 12px;
+  padding: 20px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+#houetor-selfhare-tool h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #7c4dff;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+#houetor-selfhare-tool pre {
+  font-size: 13px;
+  background: #f8f9fc;
+  border: 1px solid #e0e3eb;
+  border-radius: 8px;
+  padding: 12px;
+  max-height: 200px;
+  overflow: auto;
+}
+
+#houetor-selfhare-loading .spinner {
+  display: inline-block;
+  visibility: visible;
+}
+
+/* ── Toolbar ── */
+#houetor-selfhare-toolbar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  background: #fff;
+  border: 1px solid #e0e3eb;
+  border-radius: 12px;
+  padding: 16px 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+#houetor-selfhare-toolbar > div {
+  flex: 1 1 180px;
+  min-width: 160px;
+}
+
+#houetor-selfhare-toolbar select {
+  box-sizing: border-box;
+}
+
+#houetor-selfhare-toolbar > div {
+  flex: 1;
+  min-width: 180px;
+}
+
+#houetor-selfhare-toolbar label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  color: #7c4dff;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+#houetor-selfhare-toolbar select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid #e0e3eb;
+  border-radius: 8px;
+  background: #f8f9fc;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #1a1a2e;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%237c4dff' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+#houetor-selfhare-toolbar select:hover {
+  border-color: #b39ddb;
+}
+
+#houetor-selfhare-toolbar select:focus {
+  border-color: #7c4dff;
+  box-shadow: 0 0 0 3px rgba(124, 77, 255, 0.12);
+  outline: none;
+}
+
+/* ── File upload ── */
+#houetor-selfhare-upload-label {
+  cursor: pointer;
+  padding: 8px 12px;
+  background: #f8f9fc;
+  border: 1.5px solid #e0e3eb;
+  border-radius: 8px;
+  font-size: 16px;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+#houetor-selfhare-upload-label:hover {
+  background: #ede7f6;
+  border-color: #7c4dff;
+}
+
+#houetor-selfhare-file-preview {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #646970;
+  background: #f8f9fc;
+  border: 1.5px solid #e0e3eb;
+  border-radius: 8px;
+  padding: 6px 12px;
+  animation: fadeUp 0.2s ease;
+  margin-top: 8px;
+}
+
+#houetor-selfhare-file-preview.show {
+  display: flex;
+}
+
+#houetor-selfhare-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+  font-weight: 500;
+  color: #7c4dff;
+}
+
+/* ── Input ── */
+#houetor-selfhare-input {
+  flex: 1;
+  padding: 10px 14px;
+  font-size: 14px;
+  border: 1.5px solid #e0e3eb;
+  border-radius: 8px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+#houetor-selfhare-input:focus {
+  border-color: #7c4dff;
+  box-shadow: 0 0 0 3px rgba(124, 77, 255, 0.12);
+  outline: none;
+}
+
+/* ── Modal ── */
+#houetor-selfhare-modal {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.5);
+  z-index: 100000;
+  justify-content: center;
+  align-items: center;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+#houetor-selfhare-modal > div {
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  animation: slideUp 0.25s ease;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+#houetor-selfhare-modal h3 {
+  margin: 0 0 12px;
+  font-size: 18px;
+  color: #1a1a2e;
+  font-weight: 700;
+}
+
+#houetor-selfhare-modal-summary {
+  font-size: 15px;
+  line-height: 1.6;
+  color: #1a1a2e;
+  padding: 12px 16px;
+  background: #f3e5f5;
+  border-radius: 8px;
+  border-left: 3px solid #7c4dff;
+}
+
+/* ── Diff table ── */
+#houetor-selfhare-modal-diff {
+  margin: 16px 0;
+  padding: 16px;
+  background: #f8f9fc;
+  border-radius: 10px;
+  font-size: 13px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+#houetor-selfhare-modal-diff table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#houetor-selfhare-modal-diff th {
+  padding: 8px 10px;
+  font-size: 10px;
+  text-align: left;
+  color: #7c4dff;
+  border-bottom: 2px solid #e0e3eb;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+}
+
+#houetor-selfhare-modal-diff td {
+  padding: 8px 10px;
+  font-size: 12px;
+  border-bottom: 1px solid #e0e3eb;
+  vertical-align: top;
+}
+
+#houetor-selfhare-modal-diff td.field-label {
+  color: #646970;
+  white-space: nowrap;
+  font-weight: 600;
+  width: 30%;
+}
+
+#houetor-selfhare-modal-diff td.value-before {
+  color: #8c8f94;
+  width: 35%;
+}
+
+#houetor-selfhare-modal-diff td.value-before.changed {
+  background: #fce4ec;
+  color: #c62828;
+  border-radius: 4px;
+}
+
+#houetor-selfhare-modal-diff td.value-after {
+  color: #8c8f94;
+  width: 35%;
+}
+
+#houetor-selfhare-modal-diff td.value-after.changed {
+  background: #e8f5e9;
+  color: #2e7d32;
+  border-radius: 4px;
+}
+
+/* ── Buttons ── */
+#houetor-selfhare-chat .button-primary {
+  background: #7c4dff !important;
+  border-color: #7c4dff !important;
+  color: #fff !important;
+  border-radius: 8px !important;
+  padding: 4px 18px !important;
+  font-weight: 600 !important;
+  transition: background 0.15s, transform 0.1s !important;
+}
+
+#houetor-selfhare-chat .button-primary:hover {
+  background: #651fff !important;
+  transform: translateY(-1px);
+}
+
+#houetor-selfhare-chat .button-primary:active {
+  transform: translateY(0);
+}
+
+#houetor-selfhare-chat .button {
+  border-radius: 8px !important;
+  padding: 4px 18px !important;
+  font-weight: 500 !important;
+}
+
+/* ── Loading ── */
+#houetor-selfhare-loading {
+  display: none;
+  margin-top: 12px;
+  padding: 16px;
+  background: #f3e5f5;
+  border-radius: 10px;
+  color: #7c4dff;
+  font-weight: 600;
+  font-size: 13px;
+  text-align: center;
+}
+
+#houetor-selfhare-loading .spinner {
+  float: none;
+  margin-top: 0;
+  vertical-align: middle;
+}
+
+/* ── Execute result ── */
+#houetor-selfhare-execute-result .notice {
+  margin: 0 !important;
+  border-radius: 8px !important;
+}
+
+/* ── Modal actions ── */
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+#houetor-selfhare-modal-confirm {
+  background: #e53935 !important;
+  border-color: #e53935 !important;
+}
+
+#houetor-selfhare-modal-confirm:hover {
+  background: #c62828 !important;
+}
+
+/* ── Messages area spacing ── */
+#houetor-selfhare-messages {
+  clear: both;
+}
+
+/* ── Tool section spacing ── */
+#houetor-selfhare-tool {
+  margin-top: 16px;
+}
+
+/* ── Loading spacing ── */
+#houetor-selfhare-loading {
+  margin-top: 12px;
+}
+
+/* ── Hide inline confirm (shown only by JS) ── */
+#houetor-selfhare-confirm {
+  display: none;
+}
+
+/* ── Form layout ── */
+#houetor-selfhare-form {
+  display: block;
+}
+
+#houetor-selfhare-form .form-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ── Admin page header ── */
+.wrap h1 {
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+.wrap > p {
+  color: #646970;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+/* ── Preview summary ── */
+#houetor-selfhare-preview-summary {
+  display: none;
+  margin-top: 8px;
+  padding: 10px 14px;
+  background: #f3e5f5;
+  border-left: 3px solid #7c4dff;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #1a1a2e;
+}
+
+/* ── Tool action buttons ── */
+#houetor-selfhare-tool > div:nth-child(4) {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}

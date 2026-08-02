@@ -183,3 +183,49 @@ o-explicit-any port�es silencieusement ; corrig�es � la source (interface 
 **Recommandations (priorité)** : (1) aligner la version + utiliser la constante ; (2) étendre CAS + expected_hash à update_content/update_block_content (modèle connect 2.7.0) ; (3) rate limit créations (compteur global) ; (4) enforce preview côté serveur (flag transient) ou retirer le mode auto ambigu ; (5) corriger la divergence str_replace ; (6) nettoyages : hack post_modified, routines (exécuter les tool_calls ou retirer), produits fantôme, uninstall (rôle+cron), journal paginé.
 
 **Décision** : rapport seul — **aucune modification** du plugin (hors périmètre sans nouvelle validation). Rapport consigné ici + LEARNING_STATE. Hors-périmètre : tout chantier correctif sur selfhare.
+
+## Exp 017 — Grosse correction `houetor-selfhare` 1.0.2, patterns connect 2.7.0 appliqués (2026-08-02, validation utilisateur obtenue)
+
+**Contexte** : après l'audit (Exp 016), validation utilisateur : « je te lance pour une grosse correction et n'oublie pas d'appliquer ce que nous avons compris et modifier sur connect ». Objet : le plugin `houetor-selfhare` (source = extraction du zip versionné, chantier dans `connect\houetor-selfhare\houetor-selfhare\`, copie d'audit Temp laissée intacte).
+
+**Correctifs appliqués (modèle connect 2.7.0 : CAS global + expected_hash, dry_run, rate limit partout, révisions avant écriture, audit écritures seules, version lockstep, erreurs traduites)** :
+
+1. **`includes/class-agent-dispatch.php`** — le cœur du chantier :
+   - Const `PREVIEW_TOKEN_TTL = 600` ; helpers `is_write_action()` + `preview_fingerprint()` (md5 json_encode des params).
+   - `execute()` réécrit : écritures → **preview token obligatoire côté serveur** (transient `sh_preview_<token>` = fingerprint, usage unique, `delete_transient` après) ; les écritures internes (routines) ne contournent que pour `create_content` (brouillon) ; **gate `expected_hash`** (md5 post_content vs expected_hash → `edit_conflict` 409) ; `dry_run` ; **rate limit** ; capture before/after ; **journal d'audit écritures seules** (lectures non loggées).
+   - `preview()` renvoie `preview_token` + `expected_hash` (md5 contenu courant).
+   - `check_rate_limit()` : écritures seules, par post `sh_rate_<id>` (10/60 s) OU par user `sh_rate_u_<uid>` pour les créations (post_id=0, fallback CLI `sh_rate_u_cli`) — créations enfin limitées.
+   - `update_content()` : via `cas_write` + `find_text` strict (`strpos` → `find_text_not_found`, fin du str_replace silencieux) + meta produits.
+   - `update_product_meta()` : WC réel (`_regular_price` via `wc_format_decimal`, `_manage_stock=yes`, `_stock` + `wc_update_product_stock`) ; `create_content()` applique aussi les meta produits (fin du produit fantôme).
+   - `delete_content()` : `wp_save_post_revision()` avant `wp_trash_post`.
+   - `update_block_content()` : via `cas_write` au lieu de `wp_update_post` direct.
+   - **Retrait du hack** `UPDATE ... SET post_modified = post_modified` de `cas_write`.
+2. **`includes/class-error-translator.php`** : codes `preview_required` + `find_text_not_found` traduits en conseils.
+3. **`assets/admin-chat.js`** : variable `previewToken` récupérée de `res.data.preview_token`, envoyée au dispatch (`tc.preview_token`), réinitialisée à `closeModal()`.
+4. **`includes/class-agent-routines.php`** : `send_relay()` désormais **bloquant** (fini `blocking => false`), parse `tool_call` du relay, marque `internal => true`, exécute via Dispatch — les routines planifiées exécutent ENFIN les tool_calls ; `execute_routine` + `send_audit_message` passent par `send_relay`.
+5. **`includes/class-license.php`** : licence chiffrée au repos — AES-256-CBC, format `base64(iv):base64(data)`, clé = `sha256(wp_salt('auth') . '|houetor-selfhare')` tronquée 32 octets ; `get_license()` déchiffre, `save_license()` chiffre.
+6. **`uninstall.php`** : `delete_option` (license/pages_cache/auto_mode) + `wp_clear_scheduled_hook('houetor_selfhare_cron')` + `remove_role('houetor_selfhare_agent')` — nettoyage complet.
+7. **`houetor-selfhare.php`** : header Version **1.0.2** ; **la constante `HOUETOR_SELFHARE_VERSION` est ENFIN utilisée** (localize `version` du JS + footer admin) ; journal admin **paginé** (10/page, `paged=N`, total + liens).
+8. **`readme.txt`** : Stable tag 1.0.2 + changelog 1.0.2.
+
+**Vérifications** : `php -l` 0 erreur (16 fichiers) ; aucun BOM dans les .php du zip ; **zip reconstruit** (WSL `zip`, racine `houetor-selfhare/`, 20 fichiers) — `sha256 155e1d99…`, contenu `diff -r` identique au chantier, **install/activation testées** dans WP lab via `wp plugin install <zip>` (Version 1.0.2 affichée).
+
+**Batterie de tests** `scripts/selfhare-test-016.php` (WP lab, 12 sections) : **36 PASS / 0 FAIL (exit 0)** :
+1. Version lockstep (constante/header/stable tag 1.0.2) — 3 PASS
+2. Preview : token + expected_hash présents — 4 PASS
+3. Preview obligatoire serveur : sans token → `preview_required`, mauvais token → `preview_required`, bon token → écriture + révision créée, token à usage unique — 6 PASS
+4. CAS : expected_hash périmé → `edit_conflict` 409, contenu non écrasé — 2 PASS
+5. `find_text` introuvable → `find_text_not_found` (preview ET exécution), contenu restauré — 3 PASS
+6. `dry_run` : succès sans création de post — 2 PASS
+7. Rate limit créations : 10 OK puis 11e → `rate_limit_exceeded` — 2 PASS
+8. Audit : +1 après écriture, lectures non loggées — 1 PASS
+9. Produits (stub WooCommerce) : manifest, preview prix/stock, `_regular_price`/`_stock`/`_manage_stock` écrits — 6 PASS
+10. Routines : tool_call du relay exécuté (lecture), écriture via routine refusée (`preview_required`) — 2 PASS
+11. License : option chiffrée (pas de clair, format `iv:data`), `get_license()` déchiffre, `is_active()` OK — 4 PASS
+12. Preview de lecture (get_page_blocks) — 1 PASS
+
+(Note batterie : les compteurs rate limit créations partagent le budget avec les tests produits → `delete_transient('sh_rate_u_cli')` avant la section 9, artefact de séquencement du script, pas du plugin.)
+
+**Nettoyage post-tests** : 6 pages « SelfHare Test 016 » supprimées, transients `sh_rate_*`/`sh_preview_*` purgeés (les restants expirent en 10 min de toute façon), table `actions_log` conservée (preuve before/after visibles).
+
+**Livrable** : `connect\houetor-selfhare.zip` reconstruit + dossier chantier `connect\houetor-selfhare\` à committer (pattern repo : dossier source + zip suivis). Hors périmètre inchangé : 3 `probe-*.mjs` untracked, copie d'audit Temp, prod jamais touchée.
