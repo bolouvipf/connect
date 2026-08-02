@@ -132,22 +132,54 @@ Format : objectif / commandes exécutées / résultat brut.
 - Wrap régénère les refs en profondeur pour duplicate (réf. uniques garanties, T8) ; wrap préserve la ref du bloc dans le sous-arbre du groupe (T10, extract_hwc_ref).
 - Le mirror-suite.sh a été enrichi : restauration des pages de référence (`restore-lab-pages.php`) avant CHAQUE batterie (la page 3 est désormais utilisée par les tests structurels — budget rate limit indépendant).
 
-## Exp 015 � Mission cl�ture lab + portage production (plugin 2.7.0 + MCP) (2026-08-02 soir)
+## Exp 015 � Mission cl�ture lab + portage production (plugin 2.7.0 + MCP) (2026-08-02 soir)
 
-**Contexte** : mission utilisateur structur�e en 9 �tapes � cl�turer le lab connect (merge opencode-learning ? main), porter le portage MCP vers le d�p�t prod houetor sur une branche d�di�e (jamais main), v�rifier nativement, tester sur un site WordPress neuf (TasteWP � Fix Day �), rapport final sans proposition de rollout.
+**Contexte** : mission utilisateur structur�e en 9 �tapes � cl�turer le lab connect (merge opencode-learning ? main), porter le portage MCP vers le d�p�t prod houetor sur une branche d�di�e (jamais main), v�rifier nativement, tester sur un site WordPress neuf (TasteWP � Fix Day �), rapport final sans proposition de rollout.
 
-**Ce qui a �t� fait** (preuves dans LEARNING_STATE � CL�TURE �) :
-- Merge FF opencode-learning ? main (connect), push ; versions 2.7.0 reconfirm�es post-merge.
-- Zip 2.7.0 copi� dans houetor/outputs/ (sha256 avant=apr�s AA7E89A8�, 42 542 octets).
-- Branche mcp-block-crud-2.7.0 cr��e depuis main (houetor) ; portage 	ools.ts (+155), dispatch.ts (+435/-41), error-translator.ts (nouveau) ; route.ts/parser.ts v�rifi�s absents du diff.
-- V�rification native : .next corrompu (artefact build gitignor�) supprim� ; **tsc 0 erreur** ; **lint app/mcp 0 erreur** ; lint global = 62 erreurs pr�-existantes hors app/mcp (�tat de main).
-- Commit c91bd5 (4 fichiers) push� sur mcp-block-crud-2.7.0 (pas de merge main � comme demand�).
-- Site TasteWP : plugin install�+activ� via wp-admin curl (nonce + upload multipart), Version 2.7.0 affich�e, token lu (32 chars, jamais affich�) ; E2E via MCP : **6 sc�narios TOUS PASS** (get_page_blocks, create+update CAS, 409 CAS p�rim�, 404 ancre, 400 wrap invers�, dry_run sans effet) + cleanup page restaur�e.
+**Ce qui a �t� fait** (preuves dans LEARNING_STATE � CL�TURE �) :
+- Merge FF opencode-learning ? main (connect), push ; versions 2.7.0 reconfirm�es post-merge.
+- Zip 2.7.0 copi� dans houetor/outputs/ (sha256 avant=apr�s AA7E89A8�, 42 542 octets).
+- Branche mcp-block-crud-2.7.0 cr��e depuis main (houetor) ; portage 	ools.ts (+155), dispatch.ts (+435/-41), error-translator.ts (nouveau) ; route.ts/parser.ts v�rifi�s absents du diff.
+- V�rification native : .next corrompu (artefact build gitignor�) supprim� ; **tsc 0 erreur** ; **lint app/mcp 0 erreur** ; lint global = 62 erreurs pr�-existantes hors app/mcp (�tat de main).
+- Commit c91bd5 (4 fichiers) push� sur mcp-block-crud-2.7.0 (pas de merge main � comme demand�).
+- Site TasteWP : plugin install�+activ� via wp-admin curl (nonce + upload multipart), Version 2.7.0 affich�e, token lu (32 chars, jamais affich�) ; E2E via MCP : **6 sc�narios TOUS PASS** (get_page_blocks, create+update CAS, 409 CAS p�rim�, 404 ancre, 400 wrap invers�, dry_run sans effet) + cleanup page restaur�e.
 
-**D�couvertes** :
-- git status houetor pr�-existant : M dispatch.ts/tools.ts = 100% EOL CRLF/LF (diff --ignore-space-at-eol vide), D ghjk.py (hors p�rim�tre, laiss�).
-- Le lab n'a jamais lint� portage-app-mcp (pas de config eslint) ? 2 erreurs 
-o-explicit-any port�es silencieusement ; corrig�es � la source (interface RestErrorData + data: unknown + cast s RestErrorData � l'appel, + cast s {block_id?: string} dans injectPage pour tsc) � comportement inchang�, typecheck 0 erreur lab + prod.
-- Token plugin lisible sur dmin.php?page=houetor-connect ; g�n�r� � l'activation.
+**D�couvertes** :
+- git status houetor pr�-existant : M dispatch.ts/tools.ts = 100% EOL CRLF/LF (diff --ignore-space-at-eol vide), D ghjk.py (hors p�rim�tre, laiss�).
+- Le lab n'a jamais lint� portage-app-mcp (pas de config eslint) ? 2 erreurs 
+o-explicit-any port�es silencieusement ; corrig�es � la source (interface RestErrorData + data: unknown + cast s RestErrorData � l'appel, + cast s {block_id?: string} dans injectPage pour tsc) � comportement inchang�, typecheck 0 erreur lab + prod.
+- Token plugin lisible sur dmin.php?page=houetor-connect ; g�n�r� � l'activation.
 - TasteWP : pas de shell ? tout par wp-admin curl.
-- L'E2E a utilis� le MCP miroir lab (patterns identiques au portage) � l'app Next de la branche exige Supabase connected_sites (site non connect� au dashboard) : limite document�e dans le rapport, pas masqu�e.
+- L'E2E a utilisé le MCP miroir lab (patterns identiques au portage) — l'app Next de la branche exige Supabase connected_sites (site non connecté au dashboard) : limite documentée dans le rapport, pas masquée.
+
+## Exp 016 — Audit complet de `houetor-selfhare` (2026-08-02, validation utilisateur obtenue)
+
+**Contexte** : fil ouvert de la mission (« audit `houetor-selfhare`, NE PAS y toucher sans validation »). Validation obtenue : « fais l'audit pour selfhare (bien sûr en restant dans le lab) ». Objet : `connect\houetor-selfhare.zip` (2e plugin HOUETOR, assistant IA WP autonome via relay `houetor.com/selfhare/relay`).
+
+**Méthode** :
+- Extraction du zip → `Temp\opencode\selfhare-audit\houetor-selfhare\` ; identité prouvée avec la source prod (`Pictures\Screenshots\houetor\houetor-selfhare`) : Compare-Object des hashes = **100% identiques**.
+- `php -l` WSL : **0 erreur** sur les 16 fichiers PHP.
+- Lecture intégrale des 21 fichiers (9 classes + plugin principal + uninstall + JS/CSS + readme + index.php).
+
+**Architecture** : 16 actions (create/update/delete posts|pages|products, get_wp_pages, inject_page, delete_block, revert_to_revision, get_page_blocks, update_block_content, get_page_history) ; flux chat → relay IA (license_key dans le body) → tool_call → preview (diff avant/après) → confirmation UI → dispatch ; rôle dédié `houetor_selfhare_agent` ; 3 tables (memory, routines, actions_log) ; CAS SQL pur sur inject_page/delete_block ; rate limit transients 10/60s ; révisions forcées ; journal d'audit.
+
+**Constats — sécurité (points forts)** :
+1. Tous les endpoints AJAX : nonce `houetor_selfhare_nonce` + caps `edit_posts` + rôle agent ; REST : 2 routes GET lecture seule avec permission double.
+2. `wp_kses_post` systématique sur tout HTML entrant ; upload whitelist MIME (jpeg/png/webp) + 5 Mo + `media_handle_sideload` ; échappement sorties admin ; JS XSS-safe (tout texte via `$('<span>').text().html()`).
+3. Créations en brouillon uniquement ; suppression → corbeille (réversible) ; `revert_to_revision` ; CAS conditionnel + rollback sur échec.
+
+**Constats — faiblesses (par ordre de gravité)** :
+1. **Version incohérente (bug #1 connect répliqué)** : header `1.0.1` + stable tag `1.0.1` vs `HOUETOR_SELFHARE_VERSION = '1.0.2'` — et la constante n'est utilisée **nulle part** (définition orpheline, grep 1 occurrence).
+2. **Aperçu contournable** : le endpoint `houetor_selfhare_dispatch` n'exécute AUCUN contrôle de preview préalable ; le mode auto (`can_skip_preview`, chat.php:9-15) n'est implémenté nulle part côté serveur et le JS ne l'utilise pas (`$confirmBtn` jamais affiché, admin-chat.js:302-304). Un appel AJAX direct avec nonce+cap exécute sans aperçu.
+3. **CAS partiel** : seuls `inject_page`/`delete_block` passent par `cas_write` (ligne 52). `update_content` (routes `update_posts/pages`, les plus utilisées), `update_block_content`, `delete_content`, `create_content`, `revert_to_revision` écrivent DIRECTEMENT sans CAS ni expected_hash → conflits non détectés (≠ connect 2.7.0 : CAS global + dry_run partout).
+4. **Rate limit inopérant sur les créations** : `check_rate_limit` renvoie `true` si `$post_id == 0` (ligne 520-521) — `create_content` n'a jamais de post_id → créations illimitées.
+5. **`update_content` : str_replace silencieux** : à l'exécution, si `find_text` absent → écriture d'un contenu identique sans erreur (ligne 451-458) ; le preview, lui, bloque (« texte introuvable », ligne 247-249). Divergence preview/exécution.
+6. **Routines inertes** : cron hebdo (`execute_routine`, `send_audit_message`) avec `blocking => false` (lignes 71, 93) → les tool_calls renvoyés par le relay sont IGNORÉS, rien n'est exécuté. Feature cosmétique.
+7. **Manifest produits fantôme** : `build_manifest()` annonce `products` (name/price/stock_quantity) si WooCommerce mais le dispatch n'écrit que post_title/post_content/post_status → `create_products` crée un produit vide, price/stock jamais modifiables.
+8. **Nettoyage incomplet** : uninstall.php ne supprime NI le rôle `houetor_selfhare_agent` NI le cron (`clear_schedule` seulement à la désactivation) ; journal admin LIMIT 10 sans pagination ; `log_action` journalise aussi les lectures → inflation table.
+9. **Hack suspect** : `UPDATE ... SET post_modified = post_modified` (cas_write ligne 59-62) — auto-affectation sans effet, résidu probable.
+10. **License stockée en clair** dans l'option `houetor_selfhare_license` et transmise en clair (HTTPS) au relay à chaque chat — stockage non protégé si DB compromise (usage courant, à connaître).
+
+**Recommandations (priorité)** : (1) aligner la version + utiliser la constante ; (2) étendre CAS + expected_hash à update_content/update_block_content (modèle connect 2.7.0) ; (3) rate limit créations (compteur global) ; (4) enforce preview côté serveur (flag transient) ou retirer le mode auto ambigu ; (5) corriger la divergence str_replace ; (6) nettoyages : hack post_modified, routines (exécuter les tool_calls ou retirer), produits fantôme, uninstall (rôle+cron), journal paginé.
+
+**Décision** : rapport seul — **aucune modification** du plugin (hors périmètre sans nouvelle validation). Rapport consigné ici + LEARNING_STATE. Hors-périmètre : tout chantier correctif sur selfhare.
