@@ -10,7 +10,13 @@ export interface TranslatedError {
   message: string
 }
 
-export function translateError(status: number, data: any, fallback: string): TranslatedError {
+export interface RestErrorData {
+  code?: string
+  message?: string
+  data?: { block_name?: string; suggested_block?: string }
+}
+
+export function translateError(status: number, data: RestErrorData, fallback: string): TranslatedError {
   const code = typeof data?.code === 'string' ? data.code : 'error'
   const raw = typeof data?.message === 'string' ? data.message : fallback
 

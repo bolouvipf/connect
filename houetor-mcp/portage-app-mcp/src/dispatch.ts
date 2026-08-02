@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase-service'
-import { translateError } from './error-translator'
+import { translateError, type RestErrorData } from './error-translator'
 
 export async function dispatch(method: string, params: Record<string, unknown>, userId: string) {
   switch (method) {
@@ -176,7 +176,7 @@ async function pluginRequest(
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
   })
 
-  let data: any = null
+  let data: unknown = null
   try {
     data = await res.json()
   } catch {
@@ -184,7 +184,7 @@ async function pluginRequest(
   }
 
   if (!res.ok) {
-    const t = translateError(res.status, data, res.statusText)
+    const t = translateError(res.status, data as RestErrorData, res.statusText)
     return { success: false, error: `${t.message}` }
   }
 
@@ -750,7 +750,7 @@ async function injectPage(params: Record<string, unknown>, userId: string) {
 
   if (!result.success) return result
 
-  const data = result.data
+  const data = result.data as { block_id?: string }
 
   if (annonce_id) {
     await supabase()
