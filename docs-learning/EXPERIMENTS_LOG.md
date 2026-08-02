@@ -131,3 +131,23 @@ Format : objectif / commandes exÃ©cutÃ©es / rÃ©sultat brut.
 - Move no-op (ancre == source) : 200 + Â« dÃ©jÃ  en place Â», **aucune rÃ©vision, aucun audit** (T4) â€” les Ã©critures sans effet ne polluent pas l'historique.
 - Wrap rÃ©gÃ©nÃ¨re les refs en profondeur pour duplicate (rÃ©f. uniques garanties, T8) ; wrap prÃ©serve la ref du bloc dans le sous-arbre du groupe (T10, extract_hwc_ref).
 - Le mirror-suite.sh a Ã©tÃ© enrichi : restauration des pages de rÃ©fÃ©rence (`restore-lab-pages.php`) avant CHAQUE batterie (la page 3 est dÃ©sormais utilisÃ©e par les tests structurels â€” budget rate limit indÃ©pendant).
+
+## Exp 015 — Mission clôture lab + portage production (plugin 2.7.0 + MCP) (2026-08-02 soir)
+
+**Contexte** : mission utilisateur structurée en 9 étapes — clôturer le lab connect (merge opencode-learning ? main), porter le portage MCP vers le dépôt prod houetor sur une branche dédiée (jamais main), vérifier nativement, tester sur un site WordPress neuf (TasteWP « Fix Day »), rapport final sans proposition de rollout.
+
+**Ce qui a été fait** (preuves dans LEARNING_STATE « CLÔTURE ») :
+- Merge FF opencode-learning ? main (connect), push ; versions 2.7.0 reconfirmées post-merge.
+- Zip 2.7.0 copié dans houetor/outputs/ (sha256 avant=après AA7E89A8…, 42 542 octets).
+- Branche mcp-block-crud-2.7.0 créée depuis main (houetor) ; portage 	ools.ts (+155), dispatch.ts (+435/-41), error-translator.ts (nouveau) ; route.ts/parser.ts vérifiés absents du diff.
+- Vérification native : .next corrompu (artefact build gitignoré) supprimé ; **tsc 0 erreur** ; **lint app/mcp 0 erreur** ; lint global = 62 erreurs pré-existantes hors app/mcp (état de main).
+- Commit c91bd5 (4 fichiers) pushé sur mcp-block-crud-2.7.0 (pas de merge main — comme demandé).
+- Site TasteWP : plugin installé+activé via wp-admin curl (nonce + upload multipart), Version 2.7.0 affichée, token lu (32 chars, jamais affiché) ; E2E via MCP : **6 scénarios TOUS PASS** (get_page_blocks, create+update CAS, 409 CAS périmé, 404 ancre, 400 wrap inversé, dry_run sans effet) + cleanup page restaurée.
+
+**Découvertes** :
+- git status houetor pré-existant : M dispatch.ts/tools.ts = 100% EOL CRLF/LF (diff --ignore-space-at-eol vide), D ghjk.py (hors périmètre, laissé).
+- Le lab n'a jamais linté portage-app-mcp (pas de config eslint) ? 2 erreurs 
+o-explicit-any portées silencieusement ; corrigées à la source (interface RestErrorData + data: unknown + cast s RestErrorData à l'appel, + cast s {block_id?: string} dans injectPage pour tsc) — comportement inchangé, typecheck 0 erreur lab + prod.
+- Token plugin lisible sur dmin.php?page=houetor-connect ; généré à l'activation.
+- TasteWP : pas de shell ? tout par wp-admin curl.
+- L'E2E a utilisé le MCP miroir lab (patterns identiques au portage) — l'app Next de la branche exige Supabase connected_sites (site non connecté au dashboard) : limite documentée dans le rapport, pas masquée.
