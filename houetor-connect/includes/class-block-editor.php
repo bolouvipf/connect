@@ -719,6 +719,357 @@ class HWC_Block_Editor {
         return null;
     }
 
+    /**
+     * Index logique d'un bloc (position parmi les blocs nommés) à partir de son
+     * index de tableau parse_blocks. Retourne null si le bloc est hors liste.
+     */
+    private static function logical_index_of($blocks, $array_idx) {
+        $actual = 0;
+        foreach ($blocks as $idx => $block) {
+            if (empty($block['blockName'])) continue;
+            if ($idx === $array_idx) return $actual;
+            $actual++;
+        }
+        return null;
+    }
+
+    /**
+     * Déplace un bloc (par ref ou index logique) vers une position
+     * (start|end|before|after + ancre). Le bloc est retiré PUIS ré-inséré ;
+     * l'ancre est résolue sur l'état AVANT retrait (les index logiques vus par
+     * l'agent restent valides). CAS, dry_run, révision et audit identiques aux
+     * autres écritures. Un déplacement sans effet (déjà en place) ne crée
+     * aucune révision ni audit.
+     */
+    public static function move_block($page_id, $block_index = null, $ref = null, $position = '', $anchor_ref = null, $anchor_index = null, $expected_hash = null, $dry_run = false) {
+        $post = get_post($page_id);
+        if (!$post) {
+            return ['success' => false, 'message' => 'Page introuvable.'];
+        }
+
+        if (!self::cas_check($post, $expected_hash)) {
+            return ['success' => false, 'error' => 'conflict', 'message' => 'Conflit de concurrence : le contenu de la page a changé depuis la lecture. Relancez get_page_blocks et repassez le expected_hash à jour.'];
+        }
+
+        $content = $post->post_content;
+        if (empty(trim($content))) {
+            return ['success' => false, 'message' => 'Le contenu de cette page est vide ou utilise un template.'];
+        }
+
+        if (!in_array($position, array('start', 'end', 'before', 'after'), true)) {
+            return ['success' => false, 'message' => 'position requis (start|end|before|after).'];
+        }
+        if (in_array($position, array('before', 'after'), true) && $anchor_ref === null && $anchor_index === null) {
+            return ['success' => false, 'message' => "position $position requiert anchor_ref ou anchor_index."];
+        }
+
+        $blocks = parse_blocks($content);
+        $src = self::locate_block($blocks, $ref, $block_index);
+        if ($src === null) {
+            $cible = $ref !== null ? "ref \"$ref\"" : "#$block_index";
+            return ['success' => false, 'message' => "Bloc $cible introuvable sur la page $page_id."];
+        }
+        $src_idx = $src['idx'];
+        $src_ref = $src['ref'];
+        $src_block = $blocks[$src_idx];
+
+        $pos = null;
+        if ($position === 'start') {
+            $pos = self::find_block_position($blocks, 0);
+            if ($pos === null) {
+                return ['success' => false, 'message' => 'Aucun bloc à déplacer (page vide de blocs).'];
+            }
+        } elseif ($position === 'end') {
+            $last = null;
+            foreach ($blocks as $idx => $b) {
+                if (!empty($b['blockName'])) $last = $idx;
+            }
+            $pos = $last === null ? count($blocks) : $last + 1;
+        } else {
+            $anchor = self::locate_block($blocks, $anchor_ref, $anchor_index);
+            if ($anchor === null) {
+                $a = $anchor_ref !== null ? "ref \"$anchor_ref\"" : "bloc #$anchor_index";
+                return ['success' => false, 'message' => "Ancre $a introuvable sur la page $page_id (position $position)."];
+            }
+            if ($anchor['idx'] === $src_idx) {
+                return ['success' => true, 'post_id' => $page_id, 'message' => "Le bloc " . ($src_ref !== null ? "ref \"$src_ref\"" : "#$block_index") . " est déjà à la position demandée — aucun déplacement."];
+            }
+            $pos = $anchor['idx'] + ($position === 'after' ? 1 : 0);
+        }
+
+        // Retrait puis ré-insertion (l'insertion se fait dans le tableau retiré).
+        array_splice($blocks, $src_idx, 1);
+        if ($pos > $src_idx) {
+            $pos--;
+        }
+        array_splice($blocks, $pos, 0, array($src_block));
+
+        $new_post_content = serialize_blocks($blocks);
+        if (md5($new_post_content) === md5($content)) {
+            return ['success' => true, 'post_id' => $page_id, 'message' => "Le bloc " . ($src_ref !== null ? "ref \"$src_ref\"" : "#$block_index") . " est déjà à la position demandée — aucun déplacement."];
+        }
+
+        $new_index = self::logical_index_of($blocks, $pos);
+
+        if ($dry_run) {
+            $cible = $ref !== null ? "ref \"$ref\"" : "bloc #$block_index";
+            return ['success' => true, 'dry_run' => true, 'post_id' => $page_id, 'ref' => $src_ref, 'block_index' => $new_index, 'blockName' => $src_block['blockName'], 'position' => $position, 'message' => "DRY RUN (aucune écriture) : déplacement du $cible ({$src_block['blockName']}) vers $position prêt dans « {$post->post_title} »."];
+        }
+
+        wp_save_post_revision($page_id);
+
+        $updated = wp_update_post([
+            'ID'           => $page_id,
+            'post_content' => wp_slash($new_post_content),
+        ], true);
+
+        if (is_wp_error($updated)) {
+            return ['success' => false, 'message' => $updated->get_error_message()];
+        }
+
+        $cible = $ref !== null ? "ref \"$ref\"" : "#$block_index";
+        return ['success' => true, 'post_id' => $updated, 'ref' => $src_ref, 'block_index' => $new_index, 'blockName' => $src_block['blockName'], 'position' => $position, 'message' => "Bloc $cible ({$src_block['blockName']}) déplacé vers $position dans « {$post->post_title} »."];
+    }
+
+    /**
+     * Régénère les refs HWC de tout un sous-arbre (duplication) : chaque ref
+     * existante est remplacée par une ref fraîche au même préfixe module, ce qui
+     * garantit l'unicité des marqueurs après copie. $map mémorise ancien -> nouveau.
+     */
+    private static function regenerate_refs_deep(&$block, &$map) {
+        $ref = self::extract_hwc_ref($block);
+        if ($ref !== null) {
+            if (!isset($map[$ref])) {
+                $module = explode('-', $ref, 2)[0];
+                $map[$ref] = $module . '-' . substr(md5($module . '|' . uniqid('', true)), 0, 12);
+            }
+            $new_ref = $map[$ref];
+            $re = '/<!-- HWC ' . preg_quote($ref, '/') . ' (start|end) -->/';
+            $block['innerHTML'] = preg_replace($re, '<!-- HWC ' . $new_ref . ' $1 -->', $block['innerHTML']);
+            foreach ($block['innerContent'] as $i => $chunk) {
+                if (is_string($chunk)) {
+                    $block['innerContent'][$i] = preg_replace($re, '<!-- HWC ' . $new_ref . ' $1 -->', $chunk);
+                }
+            }
+        }
+        if (!empty($block['innerBlocks'])) {
+            foreach ($block['innerBlocks'] as &$child) {
+                self::regenerate_refs_deep($child, $map);
+            }
+            unset($child);
+        }
+    }
+
+    /**
+     * Duplique un bloc (par ref ou index logique) juste après sa position.
+     * Les refs HWC de la copie sont régénérées (unicité préservée, préfixe
+     * module conservé) ; si le source n'a pas de ref et que $module est fourni,
+     * la copie reçoit une ref fraîche du module. La copie inclut les blocs
+     * imbriqués éventuels (sous-arbre entier). CAS, dry_run, révision, audit.
+     */
+    public static function duplicate_block($page_id, $block_index = null, $ref = null, $module = '', $expected_hash = null, $dry_run = false) {
+        $post = get_post($page_id);
+        if (!$post) {
+            return ['success' => false, 'message' => 'Page introuvable.'];
+        }
+
+        if (!self::cas_check($post, $expected_hash)) {
+            return ['success' => false, 'error' => 'conflict', 'message' => 'Conflit de concurrence : le contenu de la page a changé depuis la lecture. Relancez get_page_blocks et repassez le expected_hash à jour.'];
+        }
+
+        $content = $post->post_content;
+        if (empty(trim($content))) {
+            return ['success' => false, 'message' => 'Le contenu de cette page est vide ou utilise un template.'];
+        }
+
+        $blocks = parse_blocks($content);
+        $src = self::locate_block($blocks, $ref, $block_index);
+        if ($src === null) {
+            $cible = $ref !== null ? "ref \"$ref\"" : "#$block_index";
+            return ['success' => false, 'message' => "Bloc $cible introuvable sur la page $page_id."];
+        }
+        $src_idx = $src['idx'];
+        $src_ref = $src['ref'];
+        $src_block = $blocks[$src_idx];
+
+        $copy = $src_block;
+        $map = [];
+        self::regenerate_refs_deep($copy, $map);
+
+        $new_ref = self::extract_hwc_ref($copy);
+        if ($new_ref === null && !empty($module)) {
+            $module = sanitize_title($module);
+            $ref_id = substr(md5($page_id . '|' . $module . '|' . uniqid('', true)), 0, 12);
+            $new_ref = $module . '-' . $ref_id;
+            $copy = self::wrap_ref($copy, $new_ref);
+        }
+
+        array_splice($blocks, $src_idx + 1, 0, array($copy));
+
+        $new_post_content = serialize_blocks($blocks);
+        $new_index = self::logical_index_of($blocks, $src_idx + 1);
+
+        if ($dry_run) {
+            return ['success' => true, 'dry_run' => true, 'post_id' => $page_id, 'ref' => $new_ref, 'block_index' => $new_index, 'blockName' => $src_block['blockName'], 'message' => "DRY RUN (aucune écriture) : duplication du " . ($src_ref !== null ? "ref \"$src_ref\"" : "bloc #$block_index") . " ({$src_block['blockName']}) prête dans « {$post->post_title} »." . ($new_ref ? " Ref simulée de la copie : $new_ref" : '')];
+        }
+
+        wp_save_post_revision($page_id);
+
+        $updated = wp_update_post([
+            'ID'           => $page_id,
+            'post_content' => wp_slash($new_post_content),
+        ], true);
+
+        if (is_wp_error($updated)) {
+            return ['success' => false, 'message' => $updated->get_error_message()];
+        }
+
+        return ['success' => true, 'post_id' => $updated, 'ref' => $new_ref, 'block_index' => $new_index, 'blockName' => $src_block['blockName'], 'message' => "Bloc " . ($src_ref !== null ? "ref \"$src_ref\"" : "#$block_index") . " ({$src_block['blockName']}) dupliqué dans « {$post->post_title} »." . ($new_ref ? " Ref de la copie : $new_ref" : '')];
+    }
+
+    /**
+     * Enrobe un bloc (ou une plage contiguë start->end) dans un core/group.
+     * Le groupe reçoit une ref HWC si $module est fourni. Les refs des blocs
+     * enrobés sont conservées. CAS, dry_run, révision, audit.
+     */
+    public static function wrap_block($page_id, $block_index = null, $ref = null, $end_ref = null, $end_index = null, $module = '', $expected_hash = null, $dry_run = false) {
+        $post = get_post($page_id);
+        if (!$post) {
+            return ['success' => false, 'message' => 'Page introuvable.'];
+        }
+
+        if (!self::cas_check($post, $expected_hash)) {
+            return ['success' => false, 'error' => 'conflict', 'message' => 'Conflit de concurrence : le contenu de la page a changé depuis la lecture. Relancez get_page_blocks et repassez le expected_hash à jour.'];
+        }
+
+        $content = $post->post_content;
+        if (empty(trim($content))) {
+            return ['success' => false, 'message' => 'Le contenu de cette page est vide ou utilise un template.'];
+        }
+
+        $blocks = parse_blocks($content);
+        $src = self::locate_block($blocks, $ref, $block_index);
+        if ($src === null) {
+            $cible = $ref !== null ? "ref \"$ref\"" : "#$block_index";
+            return ['success' => false, 'message' => "Bloc $cible introuvable sur la page $page_id."];
+        }
+        $start_idx = $src['idx'];
+
+        $end_idx = $start_idx;
+        if ($end_ref !== null || $end_index !== null) {
+            $end = self::locate_block($blocks, $end_ref, $end_index);
+            if ($end === null) {
+                $cible = $end_ref !== null ? "ref \"$end_ref\"" : "bloc #$end_index";
+                return ['success' => false, 'message' => "Bloc de fin $cible introuvable sur la page $page_id."];
+            }
+            $end_idx = $end['idx'];
+            if ($end_idx < $start_idx) {
+                return ['success' => false, 'message' => 'Le bloc de fin précède le bloc de départ — plage invalide.'];
+            }
+        }
+
+        $range = array_splice($blocks, $start_idx, $end_idx - $start_idx + 1);
+        $count = count($range);
+
+        $group_ref = null;
+        if (!empty($module)) {
+            $module = sanitize_title($module);
+            $group_ref = $module . '-' . substr(md5($page_id . '|' . $module . '|' . uniqid('', true)), 0, 12);
+        }
+        $open = $group_ref !== null ? '<!-- HWC ' . $group_ref . ' start --><div class="wp-block-group">' : '<div class="wp-block-group">';
+        $close = $group_ref !== null ? '</div><!-- HWC ' . $group_ref . ' end -->' : '</div>';
+
+        $group = [
+            'blockName'    => 'core/group',
+            'attrs'        => [],
+            'innerHTML'    => $open,
+            'innerContent' => array_merge(array($open), array_fill(0, count($range), null), array($close)),
+            'innerBlocks'  => $range,
+        ];
+
+        array_splice($blocks, $start_idx, 0, array($group));
+
+        $new_post_content = serialize_blocks($blocks);
+        $group_index = self::logical_index_of($blocks, $start_idx);
+
+        if ($dry_run) {
+            return ['success' => true, 'dry_run' => true, 'post_id' => $page_id, 'ref' => $group_ref, 'block_index' => $group_index, 'blockName' => 'core/group', 'count' => $count, 'message' => "DRY RUN (aucune écriture) : $count bloc(s) prêt(s) à être enrobé(s) dans un groupe dans « {$post->post_title} »." . ($group_ref ? " Ref simulée du groupe : $group_ref" : '')];
+        }
+
+        wp_save_post_revision($page_id);
+
+        $updated = wp_update_post([
+            'ID'           => $page_id,
+            'post_content' => wp_slash($new_post_content),
+        ], true);
+
+        if (is_wp_error($updated)) {
+            return ['success' => false, 'message' => $updated->get_error_message()];
+        }
+
+        return ['success' => true, 'post_id' => $updated, 'ref' => $group_ref, 'block_index' => $group_index, 'blockName' => 'core/group', 'count' => $count, 'message' => "$count bloc(s) enrobé(s) dans un groupe dans « {$post->post_title} »." . ($group_ref ? " Ref du groupe : $group_ref" : '')];
+    }
+
+    /**
+     * Dégroupe un core/group : ses enfants sont promus à sa place (au niveau
+     * racine), le groupe disparaît. Les refs des enfants sont conservées.
+     * CAS, dry_run, révision, audit.
+     */
+    public static function unwrap_block($page_id, $block_index = null, $ref = null, $expected_hash = null, $dry_run = false) {
+        $post = get_post($page_id);
+        if (!$post) {
+            return ['success' => false, 'message' => 'Page introuvable.'];
+        }
+
+        if (!self::cas_check($post, $expected_hash)) {
+            return ['success' => false, 'error' => 'conflict', 'message' => 'Conflit de concurrence : le contenu de la page a changé depuis la lecture. Relancez get_page_blocks et repassez le expected_hash à jour.'];
+        }
+
+        $content = $post->post_content;
+        if (empty(trim($content))) {
+            return ['success' => false, 'message' => 'Le contenu de cette page est vide ou utilise un template.'];
+        }
+
+        $blocks = parse_blocks($content);
+        $src = self::locate_block($blocks, $ref, $block_index);
+        if ($src === null) {
+            $cible = $ref !== null ? "ref \"$ref\"" : "#$block_index";
+            return ['success' => false, 'message' => "Bloc $cible introuvable sur la page $page_id."];
+        }
+        $src_idx = $src['idx'];
+
+        if ($blocks[$src_idx]['blockName'] !== 'core/group') {
+            return ['success' => false, 'message' => "Le bloc ciblé ({$blocks[$src_idx]['blockName']}) n'est pas un groupe — seul core/group peut être dégroupé."];
+        }
+
+        $children = $blocks[$src_idx]['innerBlocks'] ?? [];
+        if (empty($children)) {
+            return ['success' => false, 'message' => 'Le groupe ciblé est vide — rien à dégrouper.'];
+        }
+        $count = count($children);
+
+        array_splice($blocks, $src_idx, 1, $children);
+
+        $new_post_content = serialize_blocks($blocks);
+
+        if ($dry_run) {
+            return ['success' => true, 'dry_run' => true, 'post_id' => $page_id, 'count' => $count, 'message' => "DRY RUN (aucune écriture) : dégroupement de $count bloc(s) prêt dans « {$post->post_title} »."];
+        }
+
+        wp_save_post_revision($page_id);
+
+        $updated = wp_update_post([
+            'ID'           => $page_id,
+            'post_content' => wp_slash($new_post_content),
+        ], true);
+
+        if (is_wp_error($updated)) {
+            return ['success' => false, 'message' => $updated->get_error_message()];
+        }
+
+        return ['success' => true, 'post_id' => $updated, 'count' => $count, 'message' => "Groupe dégroupé — $count bloc(s) promu(s) à la racine de « {$post->post_title} »."];
+    }
+
     public static function extract_block_text($block) {
         $html = $block['innerHTML'] ?? '';
         $text = trim(preg_replace('/\s+/', ' ', wp_strip_all_tags($html)));

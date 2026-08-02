@@ -80,6 +80,30 @@ class HWC_REST_API {
             'callback'            => array($this, 'transform_block'),
             'permission_callback' => array($this, 'check_token'),
         ));
+
+        register_rest_route('houetor/v1', '/blocks/move', array(
+            'methods'             => 'POST',
+            'callback'            => array($this, 'move_block'),
+            'permission_callback' => array($this, 'check_token'),
+        ));
+
+        register_rest_route('houetor/v1', '/blocks/duplicate', array(
+            'methods'             => 'POST',
+            'callback'            => array($this, 'duplicate_block'),
+            'permission_callback' => array($this, 'check_token'),
+        ));
+
+        register_rest_route('houetor/v1', '/blocks/wrap', array(
+            'methods'             => 'POST',
+            'callback'            => array($this, 'wrap_block'),
+            'permission_callback' => array($this, 'check_token'),
+        ));
+
+        register_rest_route('houetor/v1', '/blocks/unwrap', array(
+            'methods'             => 'POST',
+            'callback'            => array($this, 'unwrap_block'),
+            'permission_callback' => array($this, 'check_token'),
+        ));
     }
 
     public function check_token($request) {
@@ -694,6 +718,195 @@ class HWC_REST_API {
         if (!$dry_run) {
             $after = get_post($page_id);
             self::audit_log('batch_update_blocks', array('page_id' => $page_id, 'count' => count($updates), 'content_md5' => $before_md5), array('page_id' => $page_id, 'count' => $result['count'], 'content_md5' => $after ? md5($after->post_content) : ''));
+        }
+
+        return new WP_REST_Response($result, 200);
+    }
+
+    /**
+     * POST /blocks/move — déplace un bloc (ref|block_index) vers une position
+     * (start|end|before|after + anchor_ref|anchor_index). 1 écriture rate limit.
+     */
+    public function move_block($request) {
+        $params = $request->get_params();
+
+        $page_id = intval($params['page_id'] ?? 0);
+        $block_index = isset($params['block_index']) ? intval($params['block_index']) : null;
+        $ref = isset($params['ref']) ? sanitize_text_field($params['ref']) : null;
+        $position = isset($params['position']) ? sanitize_text_field($params['position']) : '';
+        $anchor_ref = isset($params['anchor_ref']) ? sanitize_text_field($params['anchor_ref']) : null;
+        $anchor_index = isset($params['anchor_index']) ? intval($params['anchor_index']) : null;
+        $expected_hash = isset($params['expected_hash']) ? sanitize_text_field($params['expected_hash']) : null;
+        $dry_run = self::dry_run($params);
+
+        if (!$page_id || ($block_index === null && !$ref)) {
+            return new WP_Error('bad_request', 'page_id et (block_index ou ref) requis.', array('status' => 400));
+        }
+
+        if (!in_array($position, array('start', 'end', 'before', 'after'), true)) {
+            return new WP_Error('bad_request', 'position requis (start|end|before|after).', array('status' => 400));
+        }
+
+        if (in_array($position, array('before', 'after'), true)) {
+            if (!$anchor_ref && $anchor_index === null) {
+                return new WP_Error('bad_request', "position $position requiert anchor_ref ou anchor_index.", array('status' => 400));
+            }
+            if ($anchor_ref !== null) {
+                // Résolution par ref : la position logique de l'ancre est passée
+                // au moteur, qui la ré-interprète sur l'état d'origine.
+                $anchor_index = HWC_Block_Editor::find_block_index_by_ref($page_id, $anchor_ref);
+                if ($anchor_index === null) {
+                    return new WP_Error('anchor_not_found', "Aucun bloc avec la ref \"$anchor_ref\" trouvé sur la page $page_id.", array('status' => 404));
+                }
+            }
+        }
+
+        if (!$dry_run && !$this->check_rate_limit($page_id)) {
+            return new WP_Error('rate_limited', 'Trop d\'écritures sur cette page (10/60s max). Réessayez plus tard.', array('status' => 429));
+        }
+
+        $before = get_post($page_id);
+        $before_md5 = $before ? md5($before->post_content) : '';
+
+        $result = HWC_Block_Editor::move_block($page_id, $block_index, $ref, $position, $anchor_ref, $anchor_index, $expected_hash, $dry_run);
+        if (!$result['success']) {
+            if (isset($result['error']) && $result['error'] === 'conflict') {
+                return new WP_Error('error_conflict', $result['message'], array('status' => 409));
+            }
+            $status = strpos($result['message'], 'introuvable') !== false ? 404 : 400;
+            return new WP_Error('move_failed', $result['message'], array('status' => $status));
+        }
+
+        if (!$dry_run && md5($before->post_content) !== md5(get_post($page_id)->post_content)) {
+            $after = get_post($page_id);
+            self::audit_log('move_block', array('page_id' => $page_id, 'block_index' => $block_index, 'ref' => $ref, 'position' => $position, 'anchor_ref' => $anchor_ref, 'content_md5' => $before_md5), array('page_id' => $page_id, 'ref' => $result['ref'], 'content_md5' => $after ? md5($after->post_content) : ''));
+        }
+
+        return new WP_REST_Response($result, 200);
+    }
+
+    /**
+     * POST /blocks/duplicate — duplique un bloc (ref|block_index) juste après
+     * lui, refs HWC de la copie régénérées. 1 écriture rate limit.
+     */
+    public function duplicate_block($request) {
+        $params = $request->get_params();
+
+        $page_id = intval($params['page_id'] ?? 0);
+        $block_index = isset($params['block_index']) ? intval($params['block_index']) : null;
+        $ref = isset($params['ref']) ? sanitize_text_field($params['ref']) : null;
+        $module = isset($params['module']) ? sanitize_text_field($params['module']) : '';
+        $expected_hash = isset($params['expected_hash']) ? sanitize_text_field($params['expected_hash']) : null;
+        $dry_run = self::dry_run($params);
+
+        if (!$page_id || ($block_index === null && !$ref)) {
+            return new WP_Error('bad_request', 'page_id et (block_index ou ref) requis.', array('status' => 400));
+        }
+
+        if (!$dry_run && !$this->check_rate_limit($page_id)) {
+            return new WP_Error('rate_limited', 'Trop d\'écritures sur cette page (10/60s max). Réessayez plus tard.', array('status' => 429));
+        }
+
+        $before = get_post($page_id);
+        $before_md5 = $before ? md5($before->post_content) : '';
+
+        $result = HWC_Block_Editor::duplicate_block($page_id, $block_index, $ref, $module, $expected_hash, $dry_run);
+        if (!$result['success']) {
+            if (isset($result['error']) && $result['error'] === 'conflict') {
+                return new WP_Error('error_conflict', $result['message'], array('status' => 409));
+            }
+            $status = strpos($result['message'], 'introuvable') !== false ? 404 : 400;
+            return new WP_Error('duplicate_failed', $result['message'], array('status' => $status));
+        }
+
+        if (!$dry_run) {
+            $after = get_post($page_id);
+            self::audit_log('duplicate_block', array('page_id' => $page_id, 'block_index' => $block_index, 'ref' => $ref, 'content_md5' => $before_md5), array('page_id' => $page_id, 'ref' => $result['ref'], 'content_md5' => $after ? md5($after->post_content) : ''));
+        }
+
+        return new WP_REST_Response($result, 200);
+    }
+
+    /**
+     * POST /blocks/wrap — enrobe un bloc (ou une plage start->end, par
+     * ref|block_index) dans un core/group (ref si module fourni). 1 écriture.
+     */
+    public function wrap_block($request) {
+        $params = $request->get_params();
+
+        $page_id = intval($params['page_id'] ?? 0);
+        $block_index = isset($params['block_index']) ? intval($params['block_index']) : null;
+        $ref = isset($params['ref']) ? sanitize_text_field($params['ref']) : null;
+        $end_ref = isset($params['end_ref']) ? sanitize_text_field($params['end_ref']) : null;
+        $end_index = isset($params['end_index']) ? intval($params['end_index']) : null;
+        $module = isset($params['module']) ? sanitize_text_field($params['module']) : '';
+        $expected_hash = isset($params['expected_hash']) ? sanitize_text_field($params['expected_hash']) : null;
+        $dry_run = self::dry_run($params);
+
+        if (!$page_id || ($block_index === null && !$ref)) {
+            return new WP_Error('bad_request', 'page_id et (block_index ou ref) requis.', array('status' => 400));
+        }
+
+        if (!$dry_run && !$this->check_rate_limit($page_id)) {
+            return new WP_Error('rate_limited', 'Trop d\'écritures sur cette page (10/60s max). Réessayez plus tard.', array('status' => 429));
+        }
+
+        $before = get_post($page_id);
+        $before_md5 = $before ? md5($before->post_content) : '';
+
+        $result = HWC_Block_Editor::wrap_block($page_id, $block_index, $ref, $end_ref, $end_index, $module, $expected_hash, $dry_run);
+        if (!$result['success']) {
+            if (isset($result['error']) && $result['error'] === 'conflict') {
+                return new WP_Error('error_conflict', $result['message'], array('status' => 409));
+            }
+            $status = strpos($result['message'], 'introuvable') !== false ? 404 : 400;
+            return new WP_Error('wrap_failed', $result['message'], array('status' => $status));
+        }
+
+        if (!$dry_run) {
+            $after = get_post($page_id);
+            self::audit_log('wrap_block', array('page_id' => $page_id, 'block_index' => $block_index, 'ref' => $ref, 'end_ref' => $end_ref, 'count' => $result['count'] ?? null, 'content_md5' => $before_md5), array('page_id' => $page_id, 'ref' => $result['ref'], 'content_md5' => $after ? md5($after->post_content) : ''));
+        }
+
+        return new WP_REST_Response($result, 200);
+    }
+
+    /**
+     * POST /blocks/unwrap — dégroupe un core/group (enfants promus à la racine).
+     * 1 écriture rate limit.
+     */
+    public function unwrap_block($request) {
+        $params = $request->get_params();
+
+        $page_id = intval($params['page_id'] ?? 0);
+        $block_index = isset($params['block_index']) ? intval($params['block_index']) : null;
+        $ref = isset($params['ref']) ? sanitize_text_field($params['ref']) : null;
+        $expected_hash = isset($params['expected_hash']) ? sanitize_text_field($params['expected_hash']) : null;
+        $dry_run = self::dry_run($params);
+
+        if (!$page_id || ($block_index === null && !$ref)) {
+            return new WP_Error('bad_request', 'page_id et (block_index ou ref) requis.', array('status' => 400));
+        }
+
+        if (!$dry_run && !$this->check_rate_limit($page_id)) {
+            return new WP_Error('rate_limited', 'Trop d\'écritures sur cette page (10/60s max). Réessayez plus tard.', array('status' => 429));
+        }
+
+        $before = get_post($page_id);
+        $before_md5 = $before ? md5($before->post_content) : '';
+
+        $result = HWC_Block_Editor::unwrap_block($page_id, $block_index, $ref, $expected_hash, $dry_run);
+        if (!$result['success']) {
+            if (isset($result['error']) && $result['error'] === 'conflict') {
+                return new WP_Error('error_conflict', $result['message'], array('status' => 409));
+            }
+            $status = strpos($result['message'], 'introuvable') !== false ? 404 : 400;
+            return new WP_Error('unwrap_failed', $result['message'], array('status' => $status));
+        }
+
+        if (!$dry_run) {
+            $after = get_post($page_id);
+            self::audit_log('unwrap_block', array('page_id' => $page_id, 'block_index' => $block_index, 'ref' => $ref, 'content_md5' => $before_md5), array('page_id' => $page_id, 'count' => $result['count'], 'content_md5' => $after ? md5($after->post_content) : ''));
         }
 
         return new WP_REST_Response($result, 200);

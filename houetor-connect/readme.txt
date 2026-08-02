@@ -4,7 +4,7 @@ Donate link: https://houetor.com
 Tags: houetor, hare, annonces, produits, formations, api
 Requires at least: 5.8
 Tested up to: 6.8
-Stable tag: 2.6.0
+Stable tag: 2.7.0
 Requires PHP: 7.4
 License: GPL-2.0+
 License URI: http://www.gnu.org/licenses/gpl-2.0.txt
@@ -53,6 +53,26 @@ Oui, vous pouvez configurer autant d\'injections que nécessaire dans la section
 Vérifiez que votre code HWT est valide et que la page sélectionnée existe. Le cache est rafraîchi toutes les 5 minutes.
 
 == Changelog ==
+
+= 2.7.0 =
+* Opérations structurelles par bloc (toutes avec CAS expected_hash, dry_run,
+  révision avant écriture, audit, refs HWC stables) :
+  - POST /blocks/move : déplacer un bloc (start | end | before | after + ancre)
+  - POST /blocks/duplicate : dupliquer un bloc juste après lui (refs régénérées en profondeur)
+  - POST /blocks/wrap : enrober un bloc ou une plage contiguë dans un core/group
+  - POST /blocks/unwrap : dégrouper un core/group (enfants promus à la racine)
+* Déplacement sans effet (déjà en place) : aucune révision, aucun audit
+* Plage de wrap inversée refusée (400 explicite)
+
+= 2.6.0 =
+* Tier policy : refus des blocs legacy à la création (400 block_legacy)
+  avec bloc de remplacement suggéré (suggested_block) — map filtrable hwc_legacy_blocks
+
+= 2.5.0 =
+* Rétention du journal d'audit : option hwc_audit_retention_days (défaut 90)
+  + CRON quotidien de purge
+* POST /blocks/transform : conversion d'un bloc de texte (paragraph/heading/quote/
+  list/code/preformatted/pullquote) — ref HWC conservée, CAS + dry_run
 
 = 2.4.0 =
 * POST /blocks/batch-update : mise à jour atomique de plusieurs blocs (max 50)
