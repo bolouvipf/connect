@@ -64,6 +64,35 @@ describe('translateError', () => {
     expect(t.message).toContain('core/preformatted')
   })
 
+  it('wrap_failed plage inversée → conseil ordre start/end', () => {
+    const t = translateError(400, {
+      code: 'wrap_failed',
+      message: 'Le bloc de fin précède le bloc de départ — plage invalide.',
+    }, 'fallback')
+    expect(t.code).toBe('wrap_failed')
+    expect(t.message).toContain('index croissants')
+    expect(t.message).toContain('get_page_blocks')
+  })
+
+  it('unwrap_failed non-groupe → conseil core/group + wrap_block', () => {
+    const t = translateError(400, {
+      code: 'unwrap_failed',
+      message: "Le bloc ciblé (core/paragraph) n'est pas un groupe — seul core/group peut être dégroupé.",
+    }, 'fallback')
+    expect(t.code).toBe('unwrap_failed')
+    expect(t.message).toContain('core/group')
+    expect(t.message).toContain('wrap_block')
+  })
+
+  it('move_failed 404 générique → message brut préservé', () => {
+    const t = translateError(404, {
+      code: 'move_failed',
+      message: 'Bloc #99 introuvable sur la page 2.',
+    }, 'fallback')
+    expect(t.status).toBe(404)
+    expect(t.message).toBe('Bloc #99 introuvable sur la page 2.')
+  })
+
   it('reste fidèle au message brut sinon', () => {
     const t = translateError(400, { code: 'validation_error', message: 'champ invalide' }, 'fallback')
     expect(t.message).toBe('champ invalide')

@@ -11,10 +11,11 @@ traduites en conseils actionnables pour que l'agent reparte du bon pied au lieu 
 La preuve de ce contrat : les scénarios utilisateur « exaucés exactement » (26/26 PASS, Phase 3).
 
 Serveur MCP (Model Context Protocol) qui pilote le plugin WordPress **houetor-connect**
-(v2.6.0 : CRUD de blocs avec refs HWC, CAS `expected_hash`, rate limit, audit log avec
+(v2.7.0 : CRUD de blocs avec refs HWC, CAS `expected_hash`, rate limit, audit log avec
 rétention configurable, révisions, batch atomique `update_blocks`, `dry_run`,
 transformation de blocs `transform_block`, **tier policy** : blocs legacy refusés à la
-création avec remplacement suggéré — erreur `block_legacy` traduite en conseil actionnable).
+création avec remplacement suggéré — erreur `block_legacy` traduite en conseil actionnable ;
+**ops structurelles** : `move_block`, `duplicate_block`, `wrap_block`, `unwrap_block`).
 
 Il reproduit **à l'identique** le protocole du serveur MCP de production
 (`app/mcp/` du projet Next HOUETOR : JSON-RPC 2.0 en HTTP + listing SSE, auth `X-HWT-Token`)
@@ -44,6 +45,10 @@ WP + blocs (tous profils) :
 - `update_blocks` — **batch atomique** : plusieurs updates (par `ref` ou `block_index`) en UNE révision, all-or-nothing, max 50 par appel, compte 1 écriture rate limit, `dry_run`
 - `delete_block` — suppression par `ref` ou `block_index`, CAS, `dry_run`
 - `transform_block` — conversion d'un bloc de texte vers un autre type texte (paragraph/heading/quote/list/code/preformatted/pullquote), `ref` HWC conservée, CAS, `dry_run` (ex: « transforme ce paragraphe en titre »)
+- `move_block` — déplacement d'un bloc (ref HWC prioritaire ou index) vers `start` | `end` | `before` | `after` (ancre par `anchor_ref`/`anchor_index`) ; sans effet si déjà en place (aucune révision, aucun audit) ; CAS, `dry_run`
+- `duplicate_block` — duplication d'un bloc juste après lui ; refs HWC de la copie régénérées en profondeur (préfixe module conservé) ; CAS, `dry_run`
+- `wrap_block` — enrobage d'un bloc ou d'une plage contiguë (start→end) dans un `core/group` ; ref de groupe si `module` ; plage inversée refusée ; CAS, `dry_run`
+- `unwrap_block` — dégroupage d'un `core/group` (enfants promus à la racine) ; cible non-groupe refusée avec conseil ; CAS, `dry_run`
 - `export_to_wordpress` — injection complète (module obligatoire)
 - `list_connected_sites` — site configuré par env (équivalent lab de la table Supabase)
 
@@ -73,10 +78,13 @@ npm start                   # ou WORDPRESS_URL=... HOUETOR_TOKEN=... npm start
 ## Tests
 
 ```bash
-npm test                    # 29 tests unitaires (Vitest, fetch mocké)
-npm run test:integration    # 33 tests vs le WordPress lab (À EXÉCUTER DANS WSL, où :8888 est joignable)
-node scripts/scenarios-test.mjs   # 26 scénarios utilisateur « exaucés exactement » via le MCP (Phase 3)
+npm test                    # 42 tests unitaires (Vitest, fetch mocké)
+npm run test:integration    # 52 tests vs le WordPress lab (À EXÉCUTER DANS WSL, où :8888 est joignable)
+node scripts/scenarios-test.mjs   # 41 scénarios utilisateur « exaucés exactement » via le MCP (Phase 3)
 ```
+
+Ou la suite complète `bash scripts/mirror-suite.sh` (restaure les pages de référence avant
+chaque batterie : 42 unitaires + 52 intégration + 41 scénarios).
 
 Prérequis scénarios : `wp option delete _transient_hwc_ratelimit_2` avant le run (budget
 10 écritures/60s par page), puis restauration de la page via révision en post-run
@@ -103,6 +111,10 @@ passer ce hash en `expected_hash`, puis **relire pour confirmer**.
 5. « Supprime l'ancienne offre » → `delete_block` par `ref`.
 6. « Conflit : un autre agent a modifié la page » → le 409 traduit dit de relire ; relire, repasser le hash frais, réécrire.
 7. « Transforme ce bloc en titre » → `transform_block` (`target_block_name: core/heading`, `ref` conservée).
+8. « Remonte ce paragraphe en haut » → `move_block` (`position:start`) — ou « place-le après ce bloc » (`position:after` + `anchor_ref`).
+9. « Duplique ce titre » → `duplicate_block` (`ref` ou `block_index`).
+10. « Regroupe ces deux blocs » → `wrap_block` (`block_index` + `end_index`, ou refs).
+11. « Dégroupe ce groupe » → `unwrap_block` (`ref` du `core/group`).
 
 ## Portage vers la prod (`app/mcp/`)
 
@@ -119,3 +131,4 @@ passer ce hash en `expected_hash`, puis **relire pour confirmer**.
 - 2.4.0 : batch atomique `update_blocks` + `dry_run` sur toutes les écritures (plugin et MCP en lockstep) ; mapping `inject_page` aligné sur la prod (`html` → `content`) ; scénarios utilisateur Phase 3 (24/24 PASS).
 - 2.5.0 : `transform_block` (conversion entre blocs de texte, ref conservée) + rétention du journal d'audit (option `hwc_audit_retention_days`, CRON quotidien) ; unitaires 29/29, intégration 33/33, scénarios 26/26.
 - 2.6.0 : **tier policy** — erreur `block_legacy` (400) traduite avec le bloc suggéré (`data.data.suggested_block` propagé par le route-handler) ; scénario S8 « bloc poème demandé → refus actionnable → l'agent applique la suggestion » ; unitaires 30/30, intégration 35/35, scénarios 29/29.
+- 2.7.0 : **ops structurelles** — `move_block` (start/end/before/after, no-op sans effet), `duplicate_block` (refs régénérées en profondeur), `wrap_block` (bloc ou plage → `core/group`, plage inversée refusée), `unwrap_block` (dégroupage) ; erreurs `wrap_failed`/`unwrap_failed` traduites en conseils ; scénarios S9-S12 ; unitaires 42/42, intégration 52/52, scénarios 41/41.

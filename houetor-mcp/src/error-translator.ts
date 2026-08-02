@@ -65,5 +65,26 @@ export function translateError(status: number, data: any, fallback: string): Tra
     }
   }
 
+  if (status === 400 && code === 'wrap_failed' && raw.includes('plage invalide')) {
+    return {
+      status,
+      code,
+      message:
+        `Plage de wrap invalide : le bloc de fin précède le bloc de départ (${raw}). ` +
+        `Passez start (ref|block_index) puis end (end_ref|end_index) dans l'ordre d'affichage ` +
+        `(index croissants, d'après get_page_blocks) et réessayez.`,
+    }
+  }
+
+  if (status === 400 && code === 'unwrap_failed' && raw.includes("n'est pas un groupe")) {
+    return {
+      status,
+      code,
+      message:
+        `Dégroupage refusé : le bloc ciblé n'est pas un core/group (${raw}). ` +
+        `Ciblez un bloc core/group (get_page_blocks) ou créez le groupe d'abord via wrap_block, puis réessayez.`,
+    }
+  }
+
   return { status, code, message: `${raw}` }
 }

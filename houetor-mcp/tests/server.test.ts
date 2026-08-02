@@ -222,6 +222,132 @@ describe('handleRequest', () => {
     expect(res.status).toBe(400)
   })
 
+  it('move_block appelle /blocks/move avec position + ancre + dry_run', async () => {
+    mockFetchOnce(200, { success: true, dry_run: false, block_index: 0, ref: 'lab-aaa' })
+    const res = await post('move_block', {
+      page_id: '2',
+      ref: 'lab-aaa',
+      position: 'before',
+      anchor_ref: 'lab-zzz',
+      expected_hash: 'md5-x',
+      dry_run: 'true',
+    })
+    expect(res.status).toBe(200)
+    const call = vi.mocked(fetch).mock.calls[0]
+    expect(String(call[0])).toBe('http://localhost:8888/wp-json/houetor/v1/blocks/move')
+    expect(call[1]?.method).toBe('POST')
+    const sent = JSON.parse(String(call[1]?.body))
+    expect(sent.ref).toBe('lab-aaa')
+    expect(sent.position).toBe('before')
+    expect(sent.anchor_ref).toBe('lab-zzz')
+    expect(sent.dry_run).toBe(true)
+    const body = await res.json()
+    expect(body.result.data.block_index).toBe(0)
+  })
+
+  it('move_block sans cible → 400', async () => {
+    const res = await post('move_block', { page_id: '2', position: 'end' })
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error.message).toContain('ref ou block_index')
+  })
+
+  it('move_block sans position → 400', async () => {
+    const res = await post('move_block', { page_id: '2', ref: 'lab-aaa' })
+    expect(res.status).toBe(400)
+  })
+
+  it('duplicate_block appelle /blocks/duplicate avec module', async () => {
+    mockFetchOnce(200, { success: true, dry_run: false, ref: 'test-copy', block_index: 3 })
+    const res = await post('duplicate_block', {
+      page_id: '2',
+      ref: 'lab-aaa',
+      module: 'test',
+      dry_run: 'true',
+    })
+    expect(res.status).toBe(200)
+    const call = vi.mocked(fetch).mock.calls[0]
+    expect(String(call[0])).toBe('http://localhost:8888/wp-json/houetor/v1/blocks/duplicate')
+    const sent = JSON.parse(String(call[1]?.body))
+    expect(sent.ref).toBe('lab-aaa')
+    expect(sent.module).toBe('test')
+    expect(sent.dry_run).toBe(true)
+    const body = await res.json()
+    expect(body.result.data.ref).toBe('test-copy')
+  })
+
+  it('wrap_block appelle /blocks/wrap avec plage + module', async () => {
+    mockFetchOnce(200, { success: true, dry_run: false, ref: 'lab-group', count: 2 })
+    const res = await post('wrap_block', {
+      page_id: '2',
+      block_index: '1',
+      end_index: '2',
+      module: 'test',
+      expected_hash: 'md5-x',
+    })
+    expect(res.status).toBe(200)
+    const call = vi.mocked(fetch).mock.calls[0]
+    expect(String(call[0])).toBe('http://localhost:8888/wp-json/houetor/v1/blocks/wrap')
+    const sent = JSON.parse(String(call[1]?.body))
+    expect(sent.block_index).toBe('1')
+    expect(sent.end_index).toBe('2')
+    expect(sent.module).toBe('test')
+    const body = await res.json()
+    expect(body.result.data.count).toBe(2)
+  })
+
+  it('wrap_block traduit la plage inversée 400 du plugin', async () => {
+    mockFetchOnce(400, {
+      code: 'wrap_failed',
+      message: 'Le bloc de fin précède le bloc de départ — plage invalide.',
+    })
+    const res = await post('wrap_block', { page_id: '2', block_index: '5', end_index: '2' })
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error.data.code).toBe('wrap_failed')
+    expect(body.error.message).toContain('index croissants')
+  })
+
+  it('unwrap_block appelle /blocks/unwrap', async () => {
+    mockFetchOnce(200, { success: true, dry_run: false, count: 2, ref: 'lab-group' })
+    const res = await post('unwrap_block', { page_id: '2', ref: 'lab-group', dry_run: 'true' })
+    expect(res.status).toBe(200)
+    const call = vi.mocked(fetch).mock.calls[0]
+    expect(String(call[0])).toBe('http://localhost:8888/wp-json/houetor/v1/blocks/unwrap')
+    const sent = JSON.parse(String(call[1]?.body))
+    expect(sent.ref).toBe('lab-group')
+    expect(sent.dry_run).toBe(true)
+    const body = await res.json()
+    expect(body.result.data.count).toBe(2)
+  })
+
+  it('unwrap_block non-groupe → 400 traduit avec conseil', async () => {
+    mockFetchOnce(400, {
+      code: 'unwrap_failed',
+      message: "Le bloc ciblé (core/paragraph) n'est pas un groupe — seul core/group peut être dégroupé.",
+    })
+    const res = await post('unwrap_block', { page_id: '2', ref: 'lab-aaa' })
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error.data.code).toBe('unwrap_failed')
+    expect(body.error.message).toContain('core/group')
+    expect(body.error.message).toContain('wrap_block')
+  })
+
+  it('SSE GET liste les tools structurels 2.7.0', async () => {
+    const res = await handleRequest(
+      new Request('http://localhost:8890/mcp', {
+        method: 'GET',
+        headers: { 'x-hwt-token': 'HWT-ONG-abc' },
+      }),
+      CONFIG,
+    )
+    const text = await res.text()
+    const parsed = JSON.parse(text.replace('data: ', '').replace('\n\n', ''))
+    const names = parsed.tools.map((t: { name: string }) => t.name)
+    expect(names).toEqual(expect.arrayContaining(['move_block', 'duplicate_block', 'wrap_block', 'unwrap_block']))
+  })
+
   it('transform_block traduit le 409 CAS du plugin', async () => {
     mockFetchOnce(409, { code: 'error_conflict', message: 'le contenu a change' })
     const res = await post('transform_block', {

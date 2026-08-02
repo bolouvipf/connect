@@ -148,4 +148,51 @@ export class WordPressClient {
   }) {
     return this.request({ method: 'POST', path: '/blocks/transform', body: params })
   }
+
+  moveBlock(params: {
+    page_id: string
+    ref?: string
+    block_index?: string
+    position: string
+    anchor_ref?: string
+    anchor_index?: string
+    expected_hash?: string
+    dry_run?: boolean
+  }) {
+    return this.request({ method: 'POST', path: '/blocks/move', body: params })
+  }
+
+  duplicateBlock(params: {
+    page_id: string
+    ref?: string
+    block_index?: string
+    module?: string
+    expected_hash?: string
+    dry_run?: boolean
+  }) {
+    return this.request({ method: 'POST', path: '/blocks/duplicate', body: params })
+  }
+
+  wrapBlock(params: {
+    page_id: string
+    ref?: string
+    block_index?: string
+    end_ref?: string
+    end_index?: string
+    module?: string
+    expected_hash?: string
+    dry_run?: boolean
+  }) {
+    return this.request({ method: 'POST', path: '/blocks/wrap', body: params })
+  }
+
+  unwrapBlock(params: {
+    page_id: string
+    ref?: string
+    block_index?: string
+    expected_hash?: string
+    dry_run?: boolean
+  }) {
+    return this.request({ method: 'POST', path: '/blocks/unwrap', body: params })
+  }
 }

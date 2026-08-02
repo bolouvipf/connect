@@ -239,6 +239,100 @@ server.listen(PORT, async () => {
     const batchDryBody = await batchDry.json()
     check('update_blocks dry_run → dry_run:true + count=1', batchDryBody.result?.data?.dry_run === true && batchDryBody.result?.data?.count === 1)
 
+    // ---- v2.7.0 : ops structurelles sur PAGE 3 (budget rate limit indépendant ; 6 écritures) ----
+    const p3init = (await (await rpc('get_page_blocks', { page_id: '3' })).json()).result?.data
+    check('page 3 lisible via MCP (Privacy Policy, draft)', p3init && p3init.blocks?.length >= 5, `count=${p3init?.blocks?.length ?? 0}`)
+    const headingWho = p3init.blocks.find((b) => b.content?.includes('Who we are'))
+    check('page 3: heading "Who we are" présent', typeof headingWho?.index === 'number')
+
+    // erreurs en dry_run / validation (0 écriture)
+    const mvBad = await rpc('move_block', {
+      page_id: '3',
+      ref: 'test-ref-inexistante',
+      position: 'start',
+      dry_run: true,
+    })
+    const mvBadBody = await mvBad.json()
+    check('move_block source introuvable (dry_run) → 404 traduit', mvBad.status === 404 && mvBadBody.error?.data?.code === 'move_failed', mvBadBody.error?.message ?? '')
+
+    const mvNoAnchor = await rpc('move_block', { page_id: '3', ref: 'test-ref-inexistante', position: 'before' })
+    check('move_block before sans ancre → 400', mvNoAnchor.status === 400)
+
+    const unBad = await rpc('unwrap_block', { page_id: '3', block_index: '2', dry_run: true })
+    const unBadBody = await unBad.json()
+    check(
+      'unwrap_block non-groupe (dry_run) → 400 traduit avec conseil core/group',
+      unBad.status === 400 &&
+        unBadBody.error?.data?.code === 'unwrap_failed' &&
+        unBadBody.error?.message?.includes('core/group'),
+      unBadBody.error?.message ?? '',
+    )
+
+    // move réel : bloc 2 → start (relire avant écrire : CAS)
+    const mvRes = await rpc('move_block', {
+      page_id: '3',
+      block_index: '2',
+      position: 'start',
+      expected_hash: p3init.content_md5,
+    })
+    const mvBody = await mvRes.json()
+    check('move_block réel → 200 + block_index 0', mvRes.status === 200 && mvBody.result?.data?.block_index === 0, mvBody.error?.message ?? '')
+    let stBlocks = (await (await rpc('get_page_blocks', { page_id: '3' })).json()).result?.data
+    check('move_block: paragraphe ciblé premier', stBlocks.blocks[0]?.content?.includes('website address'))
+
+    // duplicate réel : bloc 1 (heading) → copie juste après (pas de ref sans module)
+    const dupRes = await rpc('duplicate_block', {
+      page_id: '3',
+      block_index: '1',
+      expected_hash: stBlocks.content_md5,
+    })
+    const dupBody = await dupRes.json()
+    check('duplicate_block réel → 200', dupRes.status === 200, dupBody.error?.message ?? '')
+    stBlocks = (await (await rpc('get_page_blocks', { page_id: '3' })).json()).result?.data
+    check('duplicate_block: copie heading juste après la source', stBlocks.blocks[1]?.blockName === 'core/heading' && stBlocks.blocks[2]?.blockName === 'core/heading')
+
+    // wrap réel : plage [0..1] (paragraphe + heading) → groupe en position 0
+    const wrapRes = await rpc('wrap_block', {
+      page_id: '3',
+      block_index: '0',
+      end_index: '1',
+      expected_hash: stBlocks.content_md5,
+    })
+    const wrapBody = await wrapRes.json()
+    check('wrap_block réel plage → 200 + groupe', wrapRes.status === 200 && wrapBody.result?.data?.blockName === 'core/group', wrapBody.error?.message ?? '')
+    stBlocks = (await (await rpc('get_page_blocks', { page_id: '3' })).json()).result?.data
+    check(
+      'wrap_block: groupe en position 0, enfants plus à la racine',
+      stBlocks.blocks[0]?.blockName === 'core/group' && !stBlocks.blocks.some((b) => b.content?.includes('website address')),
+    )
+
+    // unwrap réel du groupe
+    const unwRes = await rpc('unwrap_block', {
+      page_id: '3',
+      block_index: '0',
+      expected_hash: stBlocks.content_md5,
+    })
+    const unwBody = await unwRes.json()
+    check('unwrap_block réel → 200 + count>=2', unwRes.status === 200 && unwBody.result?.data?.count >= 2, unwBody.error?.message ?? '')
+    stBlocks = (await (await rpc('get_page_blocks', { page_id: '3' })).json()).result?.data
+    check('unwrap_block: enfants de retour à la racine', stBlocks.blocks[0]?.blockName === 'core/paragraph' && stBlocks.blocks[1]?.blockName === 'core/heading')
+
+    // nettoyage page 3 : delete de la copie + move retour du paragraphe
+    const del3 = await rpc('delete_block', { page_id: '3', block_index: '2', expected_hash: stBlocks.content_md5 })
+    check('nettoyage delete copie → 200', del3.status === 200)
+    stBlocks = (await (await rpc('get_page_blocks', { page_id: '3' })).json()).result?.data
+    check('nettoyage: copie supprimée (1 seul heading "Who we are")', stBlocks.blocks.filter((b) => b.blockName === 'core/heading' && b.content?.includes('Who we are')).length === 1)
+    const mvBack = await rpc('move_block', {
+      page_id: '3',
+      block_index: '0',
+      position: 'after',
+      anchor_index: String(stBlocks.blocks.find((b) => b.content?.includes('Who we are'))?.index ?? 1),
+      expected_hash: stBlocks.content_md5,
+    })
+    check('nettoyage move retour → 200', mvBack.status === 200, (await mvBack.json()).error?.message ?? '')
+    const p3final = (await (await rpc('get_page_blocks', { page_id: '3' })).json()).result?.data
+    check('page 3 structure logique restaurée (count initial)', p3final.blocks.length === p3init.blocks.length, `before=${p3init.blocks.length} after=${p3final.blocks.length}`)
+
     const delRes = await rpc('delete_block', { page_id: '2', ref })
     const delBody = await delRes.json()
     check('delete_block → 200', delRes.status === 200, delBody.error?.message ?? '')

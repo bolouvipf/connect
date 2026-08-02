@@ -41,6 +41,14 @@ export async function dispatch(method: string, params: Record<string, unknown>, 
       return deleteBlock(params, userId)
     case 'transform_block':
       return transformBlock(params, userId)
+    case 'move_block':
+      return moveBlock(params, userId)
+    case 'duplicate_block':
+      return duplicateBlock(params, userId)
+    case 'wrap_block':
+      return wrapBlock(params, userId)
+    case 'unwrap_block':
+      return unwrapBlock(params, userId)
     case 'get_wp_menus':
       return getWpMenus(userId)
     case 'list_connected_sites':
@@ -934,6 +942,109 @@ async function transformBlock(params: Record<string, unknown>, userId: string) {
   })
 }
 
+async function moveBlock(params: Record<string, unknown>, userId: string) {
+  const { site_id, page_id, position } = params
+  if (!site_id) return { success: false, error: 'site_id requis (obtenez-le via list_connected_sites)' }
+  if (!page_id) return { success: false, error: 'page_id requis' }
+  if (!position) return { success: false, error: 'position requis (start | end | before | after)' }
+  if (!requireOneOf(params, ['ref', 'block_index'])) {
+    return { success: false, error: 'ref ou block_index requis' }
+  }
+  if ((position === 'before' || position === 'after') && !requireOneOf(params, ['anchor_ref', 'anchor_index'])) {
+    return { success: false, error: 'anchor_ref ou anchor_index requis pour before/after' }
+  }
+
+  const site = await resolveSite(site_id, userId)
+  if (!site) return { success: false, error: 'site_id invalide ou site non autorisé' }
+
+  return pluginRequest(site, '/blocks/move', {
+    method: 'POST',
+    body: {
+      page_id,
+      ref: params.ref ? String(params.ref) : undefined,
+      block_index: params.block_index !== undefined && params.block_index !== '' ? String(params.block_index) : undefined,
+      position: String(position),
+      anchor_ref: params.anchor_ref ? String(params.anchor_ref) : undefined,
+      anchor_index: params.anchor_index !== undefined && params.anchor_index !== '' ? String(params.anchor_index) : undefined,
+      expected_hash: params.expected_hash ? String(params.expected_hash) : undefined,
+      dry_run: boolParam(params, 'dry_run'),
+    },
+  })
+}
+
+async function duplicateBlock(params: Record<string, unknown>, userId: string) {
+  const { site_id, page_id } = params
+  if (!site_id) return { success: false, error: 'site_id requis (obtenez-le via list_connected_sites)' }
+  if (!page_id) return { success: false, error: 'page_id requis' }
+  if (!requireOneOf(params, ['ref', 'block_index'])) {
+    return { success: false, error: 'ref ou block_index requis' }
+  }
+
+  const site = await resolveSite(site_id, userId)
+  if (!site) return { success: false, error: 'site_id invalide ou site non autorisé' }
+
+  return pluginRequest(site, '/blocks/duplicate', {
+    method: 'POST',
+    body: {
+      page_id,
+      ref: params.ref ? String(params.ref) : undefined,
+      block_index: params.block_index !== undefined && params.block_index !== '' ? String(params.block_index) : undefined,
+      module: params.module ? String(params.module) : undefined,
+      expected_hash: params.expected_hash ? String(params.expected_hash) : undefined,
+      dry_run: boolParam(params, 'dry_run'),
+    },
+  })
+}
+
+async function wrapBlock(params: Record<string, unknown>, userId: string) {
+  const { site_id, page_id } = params
+  if (!site_id) return { success: false, error: 'site_id requis (obtenez-le via list_connected_sites)' }
+  if (!page_id) return { success: false, error: 'page_id requis' }
+  if (!requireOneOf(params, ['ref', 'block_index'])) {
+    return { success: false, error: 'ref ou block_index requis (premier bloc de la plage)' }
+  }
+
+  const site = await resolveSite(site_id, userId)
+  if (!site) return { success: false, error: 'site_id invalide ou site non autorisé' }
+
+  return pluginRequest(site, '/blocks/wrap', {
+    method: 'POST',
+    body: {
+      page_id,
+      ref: params.ref ? String(params.ref) : undefined,
+      block_index: params.block_index !== undefined && params.block_index !== '' ? String(params.block_index) : undefined,
+      end_ref: params.end_ref ? String(params.end_ref) : undefined,
+      end_index: params.end_index !== undefined && params.end_index !== '' ? String(params.end_index) : undefined,
+      module: params.module ? String(params.module) : undefined,
+      expected_hash: params.expected_hash ? String(params.expected_hash) : undefined,
+      dry_run: boolParam(params, 'dry_run'),
+    },
+  })
+}
+
+async function unwrapBlock(params: Record<string, unknown>, userId: string) {
+  const { site_id, page_id } = params
+  if (!site_id) return { success: false, error: 'site_id requis (obtenez-le via list_connected_sites)' }
+  if (!page_id) return { success: false, error: 'page_id requis' }
+  if (!requireOneOf(params, ['ref', 'block_index'])) {
+    return { success: false, error: 'ref ou block_index requis' }
+  }
+
+  const site = await resolveSite(site_id, userId)
+  if (!site) return { success: false, error: 'site_id invalide ou site non autorisé' }
+
+  return pluginRequest(site, '/blocks/unwrap', {
+    method: 'POST',
+    body: {
+      page_id,
+      ref: params.ref ? String(params.ref) : undefined,
+      block_index: params.block_index !== undefined && params.block_index !== '' ? String(params.block_index) : undefined,
+      expected_hash: params.expected_hash ? String(params.expected_hash) : undefined,
+      dry_run: boolParam(params, 'dry_run'),
+    },
+  })
+}
+
 async function getWpMenus(userId: string) {
   const { data: sites } = await supabase()
     .from('connected_sites')
@@ -1192,6 +1303,10 @@ export const ALLOWED_METHODS = [
   'update_blocks',
   'delete_block',
   'transform_block',
+  'move_block',
+  'duplicate_block',
+  'wrap_block',
+  'unwrap_block',
   'get_wp_menus',
   'list_connected_sites',
   'export_to_wordpress',

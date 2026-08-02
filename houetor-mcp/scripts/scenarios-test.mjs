@@ -189,6 +189,74 @@ server.listen(PORT, async () => {
     const after7 = await getPage('2')
     check('S6 relecture : correction appliquée après relecture', after7.blocks[0].content.includes('79'))
 
+    // ===== S9-S12 : ops structurelles (2.7.0) sur la page 3 « Privacy Policy » (budget indépendant) =====
+    const p3init = await getPage('3')
+    const p3blocks0 = p3init.blocks
+    check('S9 précondition : page 3 lisible (Privacy Policy)', p3blocks0.length >= 5, `count=${p3blocks0.length}`)
+    const headingWho = p3blocks0.find((b) => b.content?.includes('Who we are'))
+
+    // ===== S9 — « Remonte le paragraphe en haut de la page » =====
+    const s9 = await rpc('move_block', {
+      page_id: '3',
+      block_index: '2',
+      position: 'start',
+      expected_hash: p3init.content_md5,
+    })
+    const s9Body = await s9.json()
+    check('S9 move paragraphe → start : 200 + block_index 0', s9.status === 200 && s9Body.result?.data?.block_index === 0, s9Body.error?.message ?? '')
+    const after9 = await getPage('3')
+    check('S9 relecture : paragraphe en première position', after9.blocks[0]?.content?.includes('website address'))
+
+    // ===== S10 — « Duplique le titre de section » =====
+    const s10 = await rpc('duplicate_block', {
+      page_id: '3',
+      block_index: '1',
+      expected_hash: after9.content_md5,
+    })
+    const s10Body = await s10.json()
+    check('S10 duplicate heading → 200', s10.status === 200, s10Body.error?.message ?? '')
+    const after10 = await getPage('3')
+    check('S10 relecture : copie du heading juste après la source', after10.blocks[1]?.blockName === 'core/heading' && after10.blocks[2]?.blockName === 'core/heading')
+
+    // ===== S11 — « Regroupe le paragraphe et le titre dans une section » =====
+    const s11 = await rpc('wrap_block', {
+      page_id: '3',
+      block_index: '0',
+      end_index: '1',
+      expected_hash: after10.content_md5,
+    })
+    const s11Body = await s11.json()
+    check('S11 wrap plage [0..1] → 200 + groupe', s11.status === 200 && s11Body.result?.data?.blockName === 'core/group', s11Body.error?.message ?? '')
+    const after11 = await getPage('3')
+    check('S11 relecture : groupe en position 0, blocs enrobés plus à la racine', after11.blocks[0]?.blockName === 'core/group' && !after11.blocks.some((b) => b.content?.includes('website address')))
+
+    // ===== S12 — « Dégroupe la section, je veux retrouver mes blocs » =====
+    const s12 = await rpc('unwrap_block', {
+      page_id: '3',
+      block_index: '0',
+      expected_hash: after11.content_md5,
+    })
+    const s12Body = await s12.json()
+    check('S12 unwrap du groupe → 200 + count>=2', s12.status === 200 && s12Body.result?.data?.count >= 2, s12Body.error?.message ?? '')
+    const after12 = await getPage('3')
+    check('S12 relecture : paragraphe + titre de retour à la racine', after12.blocks[0]?.blockName === 'core/paragraph' && after12.blocks[1]?.blockName === 'core/heading')
+
+    // Nettoyage page 3 : delete de la copie + move retour (ancre relue après nettoyage)
+    const delCopy = await rpc('delete_block', { page_id: '3', block_index: '2', expected_hash: after12.content_md5 })
+    check('S12 cleanup delete copie → 200', delCopy.status === 200)
+    const afterDel = await getPage('3')
+    const whoNow = afterDel.blocks.find((b) => b.content?.includes('Who we are'))
+    const mvBack = await rpc('move_block', {
+      page_id: '3',
+      block_index: '0',
+      position: 'after',
+      anchor_index: String(whoNow?.index ?? 1),
+      expected_hash: afterDel.content_md5,
+    })
+    check('S12 cleanup move retour → 200', mvBack.status === 200, (await mvBack.json()).error?.message ?? '')
+    const p3final = await getPage('3')
+    check('page 3 structure logique restaurée (count initial)', p3final.blocks.length === p3blocks0.length, `before=${p3blocks0.length} after=${p3final.blocks.length}`)
+
     // ===== Nettoyage : restauration de la page 2 =====
     const delB = await rpc('delete_block', { page_id: '2', ref: refB })
     const delBBody = await delB.json()
@@ -209,7 +277,11 @@ server.listen(PORT, async () => {
     const sse = await fetch(`http://localhost:${PORT}/mcp`, { headers: { 'x-hwt-token': HWT } })
     const sseText = await sse.text()
     const sseBody = JSON.parse(sseText.replace('data: ', '').replace('\n\n', ''))
-    check('SSE : update_blocks et transform_block listés dans les tools', sse.status === 200 && sseBody.tools.some((t) => t.name === 'update_blocks') && sseBody.tools.some((t) => t.name === 'transform_block'))
+    check(
+      'SSE : tools 2.4.0-2.7.0 listés',
+      sse.status === 200 &&
+        ['update_blocks', 'transform_block', 'move_block', 'duplicate_block', 'wrap_block', 'unwrap_block'].every((n) => sseBody.tools.some((t) => t.name === n)),
+    )
   } catch (err) {
     results.push({ label: 'exception', ok: false, detail: String(err) })
     console.log('FAIL exception —', err)

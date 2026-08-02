@@ -195,6 +195,85 @@ export async function dispatch(method: string, params: Record<string, unknown>, 
       )
     }
 
+    case 'move_block': {
+      requireParams(params, ['page_id', 'position'])
+      if (!params.ref && !params.block_index) {
+        throw new MethodError(400, 'parametre manquant: ref ou block_index obligatoire')
+      }
+      return ok(
+        (
+          await wp.moveBlock({
+            page_id: String(params.page_id),
+            ref: params.ref ? String(params.ref) : undefined,
+            block_index: params.block_index ? String(params.block_index) : undefined,
+            position: String(params.position),
+            anchor_ref: params.anchor_ref ? String(params.anchor_ref) : undefined,
+            anchor_index: params.anchor_index ? String(params.anchor_index) : undefined,
+            expected_hash: params.expected_hash ? String(params.expected_hash) : undefined,
+            dry_run: boolParam(params, 'dry_run'),
+          })
+        ).data,
+      )
+    }
+
+    case 'duplicate_block': {
+      requireParams(params, ['page_id'])
+      if (!params.ref && !params.block_index) {
+        throw new MethodError(400, 'parametre manquant: ref ou block_index obligatoire')
+      }
+      return ok(
+        (
+          await wp.duplicateBlock({
+            page_id: String(params.page_id),
+            ref: params.ref ? String(params.ref) : undefined,
+            block_index: params.block_index ? String(params.block_index) : undefined,
+            module: params.module ? String(params.module) : undefined,
+            expected_hash: params.expected_hash ? String(params.expected_hash) : undefined,
+            dry_run: boolParam(params, 'dry_run'),
+          })
+        ).data,
+      )
+    }
+
+    case 'wrap_block': {
+      requireParams(params, ['page_id'])
+      if (!params.ref && !params.block_index) {
+        throw new MethodError(400, 'parametre manquant: ref ou block_index obligatoire')
+      }
+      return ok(
+        (
+          await wp.wrapBlock({
+            page_id: String(params.page_id),
+            ref: params.ref ? String(params.ref) : undefined,
+            block_index: params.block_index ? String(params.block_index) : undefined,
+            end_ref: params.end_ref ? String(params.end_ref) : undefined,
+            end_index: params.end_index ? String(params.end_index) : undefined,
+            module: params.module ? String(params.module) : undefined,
+            expected_hash: params.expected_hash ? String(params.expected_hash) : undefined,
+            dry_run: boolParam(params, 'dry_run'),
+          })
+        ).data,
+      )
+    }
+
+    case 'unwrap_block': {
+      requireParams(params, ['page_id'])
+      if (!params.ref && !params.block_index) {
+        throw new MethodError(400, 'parametre manquant: ref ou block_index obligatoire')
+      }
+      return ok(
+        (
+          await wp.unwrapBlock({
+            page_id: String(params.page_id),
+            ref: params.ref ? String(params.ref) : undefined,
+            block_index: params.block_index ? String(params.block_index) : undefined,
+            expected_hash: params.expected_hash ? String(params.expected_hash) : undefined,
+            dry_run: boolParam(params, 'dry_run'),
+          })
+        ).data,
+      )
+    }
+
     case 'export_to_wordpress': {
       requireParams(params, ['page_id', 'html', 'module'])
       const { data } = await wp.inject({
