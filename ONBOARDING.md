@@ -91,21 +91,21 @@ Exécution type : `wsl -u root -e bash -c 'cd /mnt/c/Users/Kimsh/Desktop/lab/wor
 8. **Ne pas exposer de secrets** (clés, token, mots de passe) dans les docs ni dans les sorties de chat.
 9. **Preuve avant conclusion** : un comportement n'est vrai que s'il est testé et consigné en brut.
 
-## 8. État actuel (2026-08-01)
+## 8. État actuel (2026-08-02)
 
-- **Version** : **2.6.0** (header + `HWC_VERSION` + stable tag + package.json MCP cohérents)
-- **Fonctionnalités livrées et testées** : ref HWC (marqueurs `<!-- HWC {module}-{ref} -->`), `expected_hash` CAS (409 `error_conflict`), rate limit 10 écritures/60s par page (429 `rate_limited`), table d'audit `{prefix}houetor_connect_actions_log` (before/after md5) **+ rétention** (option `hwc_audit_retention_days` défaut 90, CRON quotidien), `wp_save_post_revision()` avant toute écriture, `anchor_ref`/`anchor_index` (404 `anchor_not_found`), **batch atomique `update_blocks`** (N updates = 1 révision, all-or-nothing, max 50, 1 écriture rate limit), **`dry_run`** sur toutes les écritures (aucun effet ni budget consommé), **`transform_block`** (7 blocs texte, ref conservée), **tier policy** (blocs legacy refusés à la création → 400 `block_legacy` + `suggested_block`, map filtrable `hwc_legacy_blocks`)
-- **Scores de preuve (2.6.0)** : plugin — V3 32/32, rétention 9/9, transform 21/21, tier policy 11/11 ; MCP miroir — 30/30 unitaires, 35/35 intégration, 29/29 scénarios ; portage `app/mcp/` — typecheck 0 erreur (déploiement prod en attente de validation utilisateur)
-- **Env propre** : page 2 restaurée (md5 d'origine `ce833acf933c17dd97eef071665b6269`)
-- **Git** : `opencode-learning` (commits 2.6.0 + docs — vérifier le push en début de session)
+- **Version** : **2.7.0** (header + `HWC_VERSION` + stable tag + package.json MCP cohérents)
+- **Fonctionnalités livrées et testées** : ref HWC (marqueurs `<!-- HWC {module}-{ref} -->`), `expected_hash` CAS (409 `error_conflict`), rate limit 10 écritures/60s par page (429 `rate_limited`), table d'audit `{prefix}houetor_connect_actions_log` (before/after md5) **+ rétention** (option `hwc_audit_retention_days` défaut 90, CRON quotidien), `wp_save_post_revision()` avant toute écriture, `anchor_ref`/`anchor_index` (404 `anchor_not_found`), **batch atomique `update_blocks`** (N updates = 1 révision, all-or-nothing, max 50, 1 écriture rate limit), **`dry_run`** sur toutes les écritures (aucun effet ni budget consommé), **`transform_block`** (7 blocs texte, ref conservée), **tier policy** (blocs legacy refusés à la création → 400 `block_legacy` + `suggested_block`, map filtrable `hwc_legacy_blocks`), **ops structurelles** : `move_block` (start/end/before/after, no-op sans effet), `duplicate_block` (refs régénérées en profondeur), `wrap_block` (bloc/plage → core/group, plage inversée 400), `unwrap_block` (dégroupage, non-groupe 400) — tous CAS + dry_run + révision + audit + 1 écriture rate limit
+- **Scores de preuve (2.7.0)** : plugin — structural 42/42, V3 32/32, rétention 9/9, transform 21/21, tier policy 11/11 ; MCP miroir — 42/42 unitaires, 52/52 intégration, 41/41 scénarios ; portage `app/mcp/` — typecheck 0 erreur (déploiement prod en attente de validation utilisateur)
+- **Env propre** : page 2 restaurée (md5 d'origine `c4abdffec12763597022af2da35cd47c`)
+- **Git** : `opencode-learning` (commits 2.7.0 + docs — vérifier le push en début de session)
 
 ## 9. Prochaines étapes possibles (roadmap)
 
 1. Tests HTTP externes (depuis Windows) — bloqué pare-feu Hyper-V, non prioritaire
-2. Évolutions inspirées de l'analyse de `block-mcp` (GravityKit) — voir `EXPERIMENTS_LOG.md` : ✅ batch atomique `update_blocks`, ✅ `dry_run`, ✅ auto-transforms (`transform_block`), ✅ rétention audit, ✅ **tier policy** (2.6.0) ; restants : opérations structurelles par chemin (move/duplicate/wrap), compte agent dédié à moindre privilège (Application Passwords), rate limit rewrites séparé, tests PHPUnit automatisés
+2. Évolutions inspirées de l'analyse de `block-mcp` (GravityKit) — voir `EXPERIMENTS_LOG.md` : ✅ batch atomique `update_blocks`, ✅ `dry_run`, ✅ auto-transforms (`transform_block`), ✅ rétention audit, ✅ **tier policy** (2.6.0), ✅ **ops structurelles move/duplicate/wrap/unwrap** (2.7.0) ; restants : compte agent dédié à moindre privilège (Application Passwords), rate limit rewrites séparé, tests PHPUnit automatisés
 3. Audit de `houetor-selfhare` (2e plugin) — **en attente : ne pas y toucher sans validation utilisateur explicite**
 4. Scénarios utilisateur réels (demandes typiques → routes exactes)
-5. **Déploiement Phase 4** : copie `houetor-mcp/portage-app-mcp/src/*.ts` vers `app/mcp/` prod (7 tools bloc, typecheck 0 erreur) — en attente de validation utilisateur
+5. **Déploiement Phase 4** : copie `houetor-mcp/portage-app-mcp/src/*.ts` vers `app/mcp/` prod (11 tools bloc, typecheck 0 erreur) — en attente de validation utilisateur (prérequis plugin clients ≥ 2.7.0)
 
 ## 10. Dépannage
 

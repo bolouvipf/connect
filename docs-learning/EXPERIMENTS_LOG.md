@@ -112,3 +112,22 @@ Format : objectif / commandes exécutées / résultat brut.
 - En dry_run, le refus tier policy (400) est renvoyé SANS consommer le budget rate limit (le `check_rate_limit` est sauté en dry_run ; le refus whitelist précède l'écriture) — même patron que la découverte Exp 011 (refus CAS avant dry_run).
 - Le stable tag readme.txt était resté en 2.4.0 lors de la montée 2.5.0 (dérive silencieuse du bug #1) — corrigé en 2.6.0.
 - `sed` multi-guillemets sous PowerShell→WSL échoue : passer par l'édition de fichier directe.
+
+## Exp 014 — Évolution roadmap : ops structurelles move/duplicate/wrap/unwrap, plugin+MCP 2.7.0 (2026-08-02)
+
+**Contexte** : reprise de session — un chantier « ops structurelles » (la roadmap restante issue de block-mcp, Exp 008) était commencé la veille (19:46→20:16) mais **non commité et non documenté**. Découverte à l'ouverture : `git status` montrait ~1100 lignes d'ajouts (plugin + MCP + portage) sans aucun commit. Session = finaliser et livrer la montée 2.7.0 à risque minimisé (calquée sur Exp 012/013, cloisonnement strict : 4 NOUVEAUX endpoints, aucun endpoint existant modifié).
+
+**Ce qui a été fait** :
+- **Reprise du chantier** : vérification de l'existant (plugin synchro env test, php -l 0 erreur, serveur :8888 actif via service systemd) ; batteries de preuve lancées : **structural 42/42 PASS** (rest-test-structural.php, T1-T16) ; **régression V3 32/32** ; **unitaires 42/42, intégration 52/52, scénarios 41/41** (mirror-suite, avec S9-S12 nouveaux).
+- **Diagnostic latence** : le WP lab répondait en ~10-18 s par requête HTTP → les batteries mirror-suite dépassaient le timeout de la tool. Cause : `opcache.enable_cli=Off` + disque DrvFS `/mnt/c` — pas un bug du plugin. Contournement : exécution des batteries par étapes avec timeouts larges (900 s).
+- **Portage complété** : `portage-app-mcp/src/tools.ts` +4 tools (move_block, duplicate_block, wrap_block, unwrap_block, avec `site_id` comme les tools prod) ; `dispatch.ts` +4 cases + 4 fonctions `moveBlock/duplicateBlock/wrapBlock/unwrapBlock` (validations ref|block_index, ancre requise pour before/after, endpoint `/blocks/move|duplicate|wrap|unwrap`) + `ALLOWED_METHODS` ; `error-translator.ts` +2 cas (`wrap_failed` plage invalide → conseil index croissants, `unwrap_failed` non-groupe → conseil core/group) — **typecheck 0 erreur** (tsc Windows).
+- **Lockstep 2.7.0** : header plugin + `HWC_VERSION` + stable tag readme.txt + package.json MCP ; changelog readme.txt complété (sections 2.5.0/2.6.0 manquantes + 2.7.0) ; zip reconstruit ; docs (Exp 014, série 006, PLUGIN_CAPABILITIES 2.7.0, LEARNING_STATE, ONBOARDING, AGENTS, README MCP, README portage).
+- **Correction incident portage** : le `git status` montrait un diff EOL massif (2400 lignes) sur `portage-app-mcp/` — en réalité 100% CRLF/LF (0 changement réel avec `--ignore-space-at-eol`) : `git checkout --` pour repartir de l'arbre HEAD propre avant portage.
+
+**Scores finaux** : plugin — structural **42/42**, V3 **32/32** ; miroir — unitaires **42/42**, intégration **52/52**, scénarios **41/41** (S9-S12) ; portage — typecheck **0 erreur**.
+
+**Découvertes** :
+- Chaque op structurelle = exactement 1 écriture rate limit (T15 : duplicate → compteur 1, move réel → 2, dry_run → inchangé).
+- Move no-op (ancre == source) : 200 + « déjà en place », **aucune révision, aucun audit** (T4) — les écritures sans effet ne polluent pas l'historique.
+- Wrap régénère les refs en profondeur pour duplicate (réf. uniques garanties, T8) ; wrap préserve la ref du bloc dans le sous-arbre du groupe (T10, extract_hwc_ref).
+- Le mirror-suite.sh a été enrichi : restauration des pages de référence (`restore-lab-pages.php`) avant CHAQUE batterie (la page 3 est désormais utilisée par les tests structurels — budget rate limit indépendant).

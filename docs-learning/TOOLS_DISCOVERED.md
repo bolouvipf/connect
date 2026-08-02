@@ -141,3 +141,32 @@ Voir historique : 18 tests (auth 403, parsing, create positionnel, PATCH, révis
 - Intégration : `create_block core/verse` **en dry_run** → 400 traduit « Recréez le bloc avec "core/preformatted" à la place… », `error.data.data.suggested_block` propagé (route-handler reflète les data REST) ; aucun bloc créé.
 - Scénario **S8** « Ajoute un bloc poème (verse) » : refus `block_legacy` traduit avec suggestion → l'agent (simulé) applique la suggestion (`core/preformatted`, dry_run) → succès → aucun bloc créé → PASS (contrat « la demande s'exécute sans erreur » : l'erreur est actionnable).
 - Découverte : en dry_run, le refus tier policy (400) ne consomme PAS le budget rate limit (check_rate_limit sauté en dry_run, refus whitelist avant écriture).
+
+## T-SERIE 006 — Plugin 2.7.0 : ops structurelles move/duplicate/wrap/unwrap — 2026-08-02
+
+**Méthode :** batterie plugin `rest-test-structural.php` (16 tests T1-T16, page 2) + régression V3 + suite `mirror-suite.sh` (miroir MCP, page 3 = Privacy Policy).
+
+### Batterie structurelle — `rest-test-structural.php` : **42 PASS / 0 FAIL**
+
+**T1-T3 — move nominal** : `POST /blocks/move` par ref A→end → 200 + ref A en dernier +1 révision ; par `block_index` C→start → ref C en premier ; B→after A par ref → ordre vérifié (B juste après A).
+**T4 — move no-op (ancre == source)** : 200 + message « déjà », **md5 inchangé, AUCUNE révision, AUCUNE ligne audit**.
+**T5 — validation** : sans position → 400 ; `before` sans ancre → 400 ; source introuvable → 404 ; ancre introuvable → 404 `anchor_not_found`.
+**T6 — CAS faux → 409 `error_conflict`**, md5 inchangé.
+**T7 — move dry_run → 200 `dry_run:true` + md5 inchangé + rate limit non consommé** (transient absent).
+**T8-T9 — duplicate** : par ref → 200 + nouvelle ref ≠ source + copie juste après +1 bloc +1 révision + **toutes les refs uniques** ; bloc sans ref + module → ref `lab-…` générée.
+**T10 — wrap simple (module)** : 200 + ref groupe + `count=1` ; `core/group` visible à la place du bloc ; ref A **préservée dans le sous-arbre** (extract_hwc_ref).
+**T11 — wrap range 2 blocs + round-trip** : 200 + count = plage ; `serialize_blocks(parse_blocks())` → md5 identique ; plage inversée → 400 + md5 inchangé.
+**T12 — wrap dry_run** : 200 `dry_run:true` + md5 inchangé.
+**T13 — unwrap** : 200 + count=1 + ref A de nouveau à la racine +1 révision.
+**T14 — cas limites** : unwrap non-groupe → 400 « n'est pas un groupe » ; CAS faux → 409 ; dry_run → 200 + md5 inchangé.
+**T15 — rate limit** : duplicate = compteur 1 ; move dry_run = toujours 1 ; move réel = 2 (chaque op structurelle = 1 écriture).
+**T16 — audit** : les 4 types (`move_block`, `duplicate_block`, `wrap_block`, `unwrap_block`) journalisés.
+**Cleanup** : page 2 restaurée par révision, md5 final = md5 initial.
+
+### Régression — `rest-test-v3.php` : **32/32 PASS** (aucun endpoint existant modifié)
+
+### Miroir MCP — suite `mirror-suite.sh` : **42 unitaires / 52 intégration / 41 scénarios PASS**
+- Intégration (page 3, budget rate limit indépendant, 6 écritures) : move réel → 200 + block_index 0 ; duplicate → copie heading juste après ; wrap plage [0..1] → groupe en position 0 ; unwrap → enfants de retour à la racine ; nettoyage (delete copie + move retour) → structure logique restaurée (count initial).
+- Erreurs traduites : move source introuvable (dry_run) → 404 + `data.code=move_failed` ; move `before` sans ancre → 400 ; unwrap non-groupe (dry_run) → 400 traduit avec conseil « Ciblez un bloc core/group… ou créez le groupe via wrap_block ».
+- Scénarios **S9-S12** : « Remonte ce paragraphe en haut » (move), « Duplique ce titre » (duplicate), « Regroupe ces deux blocs » (wrap), « Dégroupe ce groupe » (unwrap) — chacun : relecture → écriture (CAS) → relecture de confirmation → PASS. SSE liste les tools 2.4.0-2.7.0.
+- Portage `portage-app-mcp/` : typecheck **0 erreur** (tsc Windows, types prod réels).

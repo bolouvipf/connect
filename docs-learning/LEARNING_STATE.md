@@ -51,8 +51,9 @@ Mise à jour à chaque session. Checklist globale du Script 2.
 - [x] Évolutions roadmap validées (mix options 1+5, « vas-y ») : **rétention audit + auto-transform** livrées — plugin+MCP **2.5.0** (V3 32/32, rétention 9/9, transform 21/21, unitaires 29/29, intégration 33/33, scénarios 26/26), commits `7ad5659`/`9b550ad`/`bd99f61`/`e8f9eef`/`744e268` + docs (Exp 012, série 004)
 - [x] Push final des commits 2.5.0 sur `opencode-learning` (git propre, synchro confirmée en reprise)
 - [x] Évolution roadmap validée (tier policy) : **refus blocs legacy + suggestion** livrée — plugin+MCP **2.6.0** (tier policy 11/11, V3 32/32, unitaires 30/30, intégration 35/35, scénarios 29/29, portage typecheck 0 erreur), commits (voir point de reprise) + docs (Exp 013, série 005)
+- [x] Évolution roadmap validée (ops structurelles) : **move/duplicate/wrap/unwrap** livrée — plugin+MCP **2.7.0** (structural 42/42, V3 32/32, unitaires 42/42, intégration 52/52, scénarios 41/41, portage typecheck 0 erreur), commits + docs (Exp 014, série 006)
 - [ ] (En attente utilisateur) Audit de `houetor-selfhare`
-- [ ] (En attente utilisateur) Déploiement Phase 4 : copie `portage-app-mcp/src/*.ts` vers `app/mcp/` prod (prérequis plugin clients ≥ 2.6.0)
+- [ ] (En attente utilisateur) Déploiement Phase 4 : copie `portage-app-mcp/src/*.ts` vers `app/mcp/` prod (prérequis plugin clients ≥ 2.7.0)
 
 ## Rappels de procédure
 
@@ -93,30 +94,31 @@ Le lab `houetor-mcp/` est un **miroir testé** du MCP : mêmes patterns (route/t
 
 **Règles rappel** : jamais `main` ; `.env.learning` + token jamais commités (env vars du MCP : `WORDPRESS_URL`, `HOUETOR_TOKEN`) ; tests isolés avant affirmation ; `php -l` avant commit ; zip en `/`.
 
-## Point de reprise — Session 2026-08-01 (2.6.0 : tier policy livrée, push final)
+## Point de reprise — Session 2026-08-02 (2.7.0 : ops structurelles livrées, push final)
 
-**État** : évolution roadmap tier policy terminée — plugin+MCP **2.6.0**, portage enrichi, docs à jour. Reste : push des commits locaux (voir `git status` en début de session) puis tout est synchro.
+**État** : évolution roadmap « ops structurelles » (move/duplicate/wrap/unwrap, dernière grande piste block-mcp restante) terminée — plugin+MCP **2.7.0**, portage enrichi, docs à jour. Chantier trouvé NON commité à l'ouverture de session (démarré la veille 19:46-20:16, sans commit ni docs) → finalisé entièrement ce jour. Reste : push des commits locaux (voir `git status` en début de session) puis tout est synchro.
 
 | Élément | État |
 |---|---|
-| **Étape A — Tier policy plugin** | ✅ `HWC_Block_Editor::LEGACY_BLOCKS` (21 entrées legacy → suggestion ALLOWED) + `legacy_suggestion()` (filtre `hwc_legacy_blocks`) ; `create_block` refuse legacy → handler REST **400 `block_legacy`** avec `data.block_name` + `data.suggested_block` ; refus générique `create_failed` conservé hors map — **test lab 11/11 PASS**, régression V3 **32/32** |
-| **Étape B — Miroir MCP** | ✅ `error-translator.ts` cas `block_legacy` (conseil « Recréez le bloc avec X ») ; `WordPressClientError` propage `data` REST, `route-handler.ts` reflète `error.data.data` ; test unitaire + intégration (legacy en dry_run → 400 traduit, budget intact) + scénario **S8** (refus → suggestion appliquée) — unitaires **30/30**, intégration **35/35**, scénarios **29/29** |
-| **Étape C — Lockstep 2.6.0** | ✅ Versions (header + `HWC_VERSION` + **stable tag 2.4.0→2.6.0, dérive corrigée** + package.json MCP) ; portage `error-translator.ts` enrichi — **typecheck 0 erreur** (tsc Windows) ; zip reconstruit ; docs (Exp 013, série 005, PLUGIN_CAPABILITIES 2.6.0, LEARNING_STATE, ONBOARDING, AGENTS, README MCP) |
-| **Phase 4 mission — portage `app/mcp/` (dans le lab)** | ✅ `houetor-mcp/portage-app-mcp/` : error-translator 2.6.0 inclus — **typecheck 0 erreur** ; **déploiement prod EN ATTENTE de validation utilisateur** (prérequis plugin clients ≥ 2.6.0) |
+| **Étape A — Ops structurelles plugin** | ✅ 4 nouveaux endpoints, aucun existant modifié : `POST /blocks/move` (start/end/before/after + ancre, no-op sans effet → 0 révision 0 audit), `/blocks/duplicate` (refs régénérées en profondeur), `/blocks/wrap` (bloc/plage → core/group, plage inversée 400), `/blocks/unwrap` (dégroupage, non-groupe 400) — tous CAS + dry_run + révision + audit + 1 écriture rate limit — **test lab 42/42 PASS**, régression V3 **32/32** |
+| **Étape B — Miroir MCP** | ✅ 4 tools (`move_block`/`duplicate_block`/`wrap_block`/`unwrap_block`) + `error-translator.ts` cas `wrap_failed`/`unwrap_failed` traduits en conseils ; tests unitaires + intégration (page 3, budget rate limit indépendant) + scénarios **S9-S12** — unitaires **42/42**, intégration **52/52**, scénarios **41/41** |
+| **Étape C — Lockstep 2.7.0** | ✅ Versions (header + `HWC_VERSION` + **stable tag** + package.json MCP) ; changelog readme.txt complété (2.5.0/2.6.0 manquants ajoutés + 2.7.0) ; portage `portage-app-mcp/` enrichi (+4 tools, +4 méthodes, +2 cas traduction) — **typecheck 0 erreur** (tsc Windows) ; zip reconstruit ; docs (Exp 014, série 006, PLUGIN_CAPABILITIES 2.7.0, LEARNING_STATE, ONBOARDING, AGENTS, README MCP, README portage) |
+| **Phase 4 mission — portage `app/mcp/` (dans le lab)** | ✅ `houetor-mcp/portage-app-mcp/` : 11 tools bloc 2.7.0 inclus — **typecheck 0 erreur** ; **déploiement prod EN ATTENTE de validation utilisateur** (prérequis plugin clients ≥ 2.7.0) |
 | **Sécurité clés** | ✅ Gemini + OpenRouter absentes de tout historique git, `.env.learning` jamais commité |
-| Env de test | ✅ Serveur :8888 via service systemd `wp-dev-server` ; plugin lab **2.6.0** actif (php -l 0 erreur, fichiers synchro) ; page 2 md5 d'origine `ce833acf933c17dd97eef071665b6269` |
+| Env de test | ✅ Serveur :8888 via service systemd `wp-dev-server` ; plugin lab **2.7.0** actif (php -l 0 erreur) ; page 2 md5 d'origine `c4abdffec12763597022af2da35cd47c` restauré en post-test |
 
 **Découvertes session** :
-- En dry_run, le refus tier policy (400) ne consomme PAS le budget rate limit (check_rate_limit sauté en dry_run ; le refus whitelist précède l'écriture) — même patron que le refus CAS avant dry_run (Exp 011).
-- Le stable tag readme.txt était resté en 2.4.0 lors de la montée 2.5.0 (dérive silencieuse du bug #1) — corrigé en 2.6.0. Vérifier le stable tag à CHAQUE montée.
-- PLUGIN_CAPABILITIES.md était resté en 2.3.0 (batch/dry_run/transform/rétention manquants) — réécrit en 2.6.0.
+- Chaque op structurelle = exactement 1 écriture rate limit ; dry_run ne consomme rien ; move no-op (déjà en place) ne crée NI révision NI audit.
+- Le diff `git status` sur `portage-app-mcp/` montrait ~2400 lignes modifiées = 100% CRLF/LF (vérifié `--ignore-space-at-eol` = 0) → `git checkout --` avant portage propre.
+- Latence WP lab ~5-18 s/requête HTTP (opcache CLI off + disque DrvFS) : les batteries mirror-suite dépassent les timeouts par défaut → exécuter par étapes avec timeouts larges (900 s).
+- Le mirror-suite.sh restaure maintenant les pages de référence (`restore-lab-pages.php`) avant CHAQUE batterie.
 
-**Pour reprendre** : AGENTS.md auto-chargé. Lire `ONBOARDING.md` (§1-8) puis `LEARNING_STATE.md` puis `EXPERIMENTS_LOG.md` Exp 013. **Rappel d'objectif** : chaque demande CRUD d'un utilisateur doit s'exécuter sans erreur (ONBOARDING §1). **Prochaine action** : `git status` → si commits locaux non poussés (tier policy plugin + MCP + zip + docs), `git push origin opencode-learning` ; puis au choix utilisateur : (a) déploiement Phase 4 (copie `portage-app-mcp/src/*.ts` vers `app/mcp/` prod, tsc + lint, commit dédié — prérequis plugin clients ≥ 2.6.0), (b) évolutions roadmap restantes (ops structurelles move/duplicate/wrap, compte agent WP moindre privilège, rate limit rewrites séparé, PHPUnit), (c) audit `houetor-selfhare` (attente validation explicite).
+**Pour reprendre** : AGENTS.md auto-chargé. Lire `ONBOARDING.md` (§1-8) puis `LEARNING_STATE.md` puis `EXPERIMENTS_LOG.md` Exp 014. **Rappel d'objectif** : chaque demande CRUD d'un utilisateur doit s'exécuter sans erreur (ONBOARDING §1). **Prochaine action** : `git status` → si commits locaux non poussés (2.7.0 plugin + MCP + portage + zip + docs), `git push origin opencode-learning` ; puis au choix utilisateur : (a) déploiement Phase 4 (copie `portage-app-mcp/src/*.ts` vers `app/mcp/` prod, tsc + lint, commit dédié — prérequis plugin clients ≥ 2.7.0), (b) roadmap restante (compte agent WP moindre privilège, rate limit rewrites séparé, PHPUnit), (c) audit `houetor-selfhare` (attente validation explicite).
 
 **Commandes MCP utiles** (dans WSL, depuis `houetor-mcp/`) :
 ```bash
-bash scripts/mirror-suite.sh        # suite complète: 30 unitaires + 35 intégration + 29 scénarios (lit le token seul, reset rate limit)
-npm test                            # 30 unitaires seuls
+bash scripts/mirror-suite.sh        # suite complète: 42 unitaires + 52 intégration + 41 scénarios (restaure les pages, reset rate limit)
+npm test                            # 42 unitaires seuls
 ```
 Relance du serveur WP lab si tombé : `wsl -u root -e bash -c "systemctl restart wp-dev-server"` (service systemd créé le 2026-08-01 car `setsid nohup wp server` meurt avec la session WSL).
 
@@ -124,4 +126,4 @@ Relance du serveur WP lab si tombé : `wsl -u root -e bash -c "systemctl restart
 1. Tests HTTP externes depuis Windows bloqués (pare-feu Hyper-V, pas admin) — non bloquant, équivalent interne OK.
 2. `houetor-selfhare` : ne pas y toucher sans validation explicite de l'utilisateur.
 3. Portage `app/mcp/` : nécessite accès prod + décision utilisateur (respecter la règle « ne pas toucher le répertoire d'origine sans validation »).
-4. Déploiement des évolutions 2.4.0→2.6.0 côté clients (plugin + MCP) : le portage inclut update_blocks, transform_block, dry_run, tier policy — les sites connectés doivent avoir le plugin ≥ 2.6.0.
+4. Déploiement des évolutions 2.4.0→2.7.0 côté clients (plugin + MCP) : le portage inclut update_blocks, transform_block, dry_run, tier policy, ops structurelles — les sites connectés doivent avoir le plugin ≥ 2.7.0.

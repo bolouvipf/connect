@@ -1,8 +1,8 @@
 # Plugin houetor-connect — Capacités & API
 
-**Version (constante PHP + header + stable tag) :** 2.6.0 — cohérent partout
-**Dernier scan :** 2026-08-01
-**Source :** repo `bolouvipf/connect` branche `opencode-learning` (2.6.0 testé en lab : tier policy 11/11, V3 32/32, rétention 9/9, transform 21/21)
+**Version (constante PHP + header + stable tag) :** 2.7.0 — cohérent partout
+**Dernier scan :** 2026-08-02
+**Source :** repo `bolouvipf/connect` branche `opencode-learning` (2.7.0 testé en lab : structural 42/42, V3 32/32, rétention 9/9, transform 21/21, tier policy 11/11)
 
 ---
 
@@ -20,6 +20,10 @@
 | `/blocks` | POST/DELETE | `create_block` / `delete_block` | token | class-rest-api.php |
 | `/blocks/batch-update` | POST | `batch_update_blocks` | token | class-rest-api.php |
 | `/blocks/transform` | POST | `transform_block` | token | class-rest-api.php |
+| `/blocks/move` | POST | `move_block` | token | class-rest-api.php |
+| `/blocks/duplicate` | POST | `duplicate_block` | token | class-rest-api.php |
+| `/blocks/wrap` | POST | `wrap_block` | token | class-rest-api.php |
+| `/blocks/unwrap` | POST | `unwrap_block` | token | class-rest-api.php |
 
 **Auth :** header `X-Houetor-Token` ou `Authorization: Bearer <token>`, comparé avec `hash_equals()` à l'option `hwc_token`.
 
@@ -59,6 +63,22 @@
 - params : `page_id`, `ref` OU `block_index`, `target_block_name`, `expected_hash`, `dry_run`
 - Conversion entre les 7 blocs `TEXT_BLOCKS` (paragraph, heading, quote, list, code, preformatted, pullquote) ; **ref HWC conservée** ; `level` du heading préservé ; refuse imbriqués/hors whitelist (source ET cible) ; révision + CAS + audit `transform_block`.
 
+### `/blocks/move` (2.7.0)
+- params : `page_id`, `ref` OU `block_index`, `position` (`start`|`end`|`before`|`after`), `anchor_ref`/`anchor_index` (requis pour before/after ; inconnu → **404 `anchor_not_found`**), `expected_hash`, `dry_run`
+- Le bloc est retiré PUIS ré-inséré ; l'ancre est résolue sur l'état AVANT retrait (les index logiques vus par l'agent restent valides — helper `logical_index_of`). **No-op** (déjà en place) : 200 + message « déjà », AUCUNE révision, AUCUN audit. 1 écriture rate limit, révision + CAS + audit `move_block`.
+
+### `/blocks/duplicate` (2.7.0)
+- params : `page_id`, `ref` OU `block_index`, `module` (ref de la copie si source sans ref), `expected_hash`, `dry_run`
+- Copie juste après la source ; **refs HWC régénérées en profondeur** (préfixe module conservé, unicité garantie) ; imbriqués acceptés (dupliqués en profondeur). 1 écriture rate limit, révision + CAS + audit `duplicate_block`.
+
+### `/blocks/wrap` (2.7.0)
+- params : `page_id`, `ref` OU `block_index` (premier de la plage), `end_ref`/`end_index` (dernier, plage > 1), `module` (ref du groupe), `expected_hash`, `dry_run`
+- Enrobe un bloc ou une plage contiguë dans un `core/group` ; ref HWC des blocs enrobés **préservées** (sous-arbre) ; **plage inversée → 400** explicite ; round-trip parse/serialize vérifié. 1 écriture rate limit, révision + CAS + audit `wrap_block`.
+
+### `/blocks/unwrap` (2.7.0)
+- params : `page_id`, `ref` OU `block_index`, `expected_hash`, `dry_run`
+- Dégroupe un `core/group` : enfants promus à la racine à sa place ; cible non-groupe → 400 « n'est pas un groupe » ; group vide → supprimé. 1 écriture rate limit, révision + CAS + audit `unwrap_block`.
+
 ---
 
 ## Fonctions PHP découvertes
@@ -73,6 +93,10 @@
 | `HWC_Block_Editor::create_block()` | Création + enrobage ref HWC si module, anchors before/after, tier policy |
 | `HWC_Block_Editor::batch_update_blocks()` | Batch atomique all-or-nothing (max 50, 1 révision) |
 | `HWC_Block_Editor::transform_block()` | Conversion texte→texte, ref conservée, whitelist TEXT_BLOCKS |
+| `HWC_Block_Editor::move_block()` | Déplacement start/end/before/after, no-op sans effet, index logiques stables |
+| `HWC_Block_Editor::duplicate_block()` | Duplication juste après, refs régénérées en profondeur |
+| `HWC_Block_Editor::wrap_block()` | Enrobage bloc/plage dans core/group, refs préservées, plage inversée refusée |
+| `HWC_Block_Editor::unwrap_block()` | Dégroupage core/group, enfants promus à la racine |
 | `HWC_Block_Editor::delete_block()` | Suppression par ref ou index |
 | `HWC_REST_API::check_rate_limit()` | Transient 10/60s par page |
 | `HWC_REST_API::audit_log()` | Insertion journal (before/after md5) |
@@ -90,7 +114,7 @@
 
 | Élément | Valeur |
 |---|---|
-| `HWC_VERSION` | `2.6.0` |
+| `HWC_VERSION` | `2.7.0` |
 | `HWC_API_BASE` | `https://houetor.com/api/public` |
 | `RATE_LIMIT_WINDOW` / `RATE_LIMIT_MAX` | `60` / `10` |
 | `BATCH_MAX_UPDATES` | `50` |
