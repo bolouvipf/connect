@@ -229,3 +229,39 @@ o-explicit-any port�es silencieusement ; corrig�es � la source (interface 
 **Nettoyage post-tests** : 6 pages « SelfHare Test 016 » supprimées, transients `sh_rate_*`/`sh_preview_*` purgeés (les restants expirent en 10 min de toute façon), table `actions_log` conservée (preuve before/after visibles).
 
 **Livrable** : `connect\houetor-selfhare.zip` reconstruit + dossier chantier `connect\houetor-selfhare\` à committer (pattern repo : dossier source + zip suivis). Hors périmètre inchangé : 3 `probe-*.mjs` untracked, copie d'audit Temp, prod jamais touchée.
+
+## Exp 018 — Validation du portage MCP prod en conditions réelles (Fix Day connecté) (2026-08-03)
+
+**Contexte** : l'utilisateur a connecté le site TasteWP « Fix Day » au dashboard HOUETOR (token profil ONG `HWT-ONG-2566161c-…`, ligne Supabase `connected_sites` id `f166ef68-8816-45b0-97f9-d618360a84d6`) et uploadé un starter site (contenu réel : pages About/Accueil/Blog/Contact/Home/Services, blocs `atomic-wind/box` du thème starter). Objectif : tester enfin le **portage MCP prod** (branche `mcp-block-crud-2.7.0` du repo houetor) en conditions réelles — l'E2E de l'Exp 015 passait par le miroir lab faute de site connecté.
+
+**Identifiants fournis par l'utilisateur (stockés dans `.env.learning`, gitignoré, jamais affichés/commités)** : wp-admin Fix Day (`pierre11bolouvi` + mot de passe), token HWT ONG, clés Supabase (`sb_publishable_*` pour anon, JWT `service_role`).
+
+**Ce qui a été fait** :
+1. **Infra** : app Next du repo houetor lancée localement — d'abord `next dev` (Turbopack), puis `next build` + `next start` sur le port 3010 (le runtime edge du MCP en dev Turbopack n'inline pas correctement les env ; en prod build c'est OK).
+2. **Blocage Supabase résolu** : le `.env.local` du repo houetor (snapshot Vercel CLI) avait les 3 variables Supabase vidées (`""`). `vercel env pull` (dev et production) renvoie des valeurs vides : le compte CLI (`bopiflo05-9197`) n'a pas le droit de décrypter les secrets (seules les variables système TURBO_*/VERCEL_* reviennent, plus `VERCEL_OIDC_TOKEN`). L'URL du projet (`https://jseikgsdfjarozzshnxj.supabase.co`) a été retrouvée par grep dans le repo ; les clés ont été fournies par l'utilisateur. → `.env.local` réécrit avec les 3 variables (gitignoré, jamais commité).
+3. **Tests MCP prod — première validation réelle du portage, 9/9 PASS** :
+   - `GET /mcp` SSE avec `X-HWT-Token` ONG : profil ONG, uuid correct, **32 tools** dont les 12 tools bloc 2.7.0 (get_page_blocks, create_block, update_block_content, update_blocks, delete_block, transform_block, move_block, duplicate_block, wrap_block, unwrap_block, inject/uninject_page).
+   - `POST list_connected_sites` : HTTP 200, Fix Day présent (id, url, token plugin cohérent avec la page admin).
+   - Cycle CRUD 2.7.0 complet sur la **page 5 (About, contenu starter)** : `create_block` dry_run (md5 intact, bloc absent, message « DRY RUN (aucune écriture) ») → create réel (ref `e2eprod-…` générée, bloc présent, md5 avancé) → `update_block_content` CAS OK (appliqué) → **CAS périmé → refusé « Conflit CAS » + contenu intact** → `update_blocks` batch atomique (appliqué) → `move_block` vers start (index 0) → `delete_block` (bloc disparu) → **page restaurée à l'identique** (md5 `a40568809ad0d4c949468cd29616c2dd` = état d'origine avant toute écriture de la session).
+4. **Site Fix Day** : starter uploadé par l'utilisateur ; plugin `houetor-connect` **toujours actif en 2.7.0** (vérifié via wp-admin cookies) ; token plugin (32 chars) lu sur la page admin et ajouté à `.env.learning` (masqué). Session wp-admin utilisable pour de futurs re-uploads (méthode curl cookies, voir Exp 015).
+
+**Découvertes** :
+- Shape des réponses MCP prod : les écritures renvoient `result.data {success, post_id, ref, message}` — **pas de liste de blocs ni md5** → toujours relire `get_page_blocks` après une écriture pour vérifier.
+- Les erreurs plugin arrivent en `success:false + error` (HTTP 200, JSON-RPC pas d'`error`), message **traduit avec conseil actionnable** (« Re-lisez la page (get_page_blocks) pour obtenir un content_md5/expected_hash à jour, puis réessayez ») — le error-translator du portage fonctionne.
+- `get_wp_pages` prod : `result.data[0].pages.pages[]` (id numériques, title/slug/url) — différent du miroir (même protocole, shape dispatch prod).
+- Le script d'E2E lab (Temp/opencode) doit gérer : pageId dans `data[0].pages.pages`, md5 dans `data.content_md5`, erreurs via `success:false`.
+- `next dev` (Turbopack) ne suffit pas pour le MCP edge avec env : utiliser `next build` + `next start`.
+
+**Reste à faire (point de reprise)** :
+1. Ops structurelles en réel (transform/wrap/duplicate/unwrap) sur la page 2 (Accueil, contenu riche) — script `mcp-e2e-prod.mjs` (Temp/opencode) à étendre ; budget rate limit 10/60s par page.
+2. Consigner cette session dans LEARNING_STATE.md + AGENTS/ONBOARDING (fait en fin de session) + commit + push `opencode-learning`.
+3. Décisions utilisateur en attente (inchangées) : merge/rollout `mcp-block-crud-2.7.0` → main (houetor) ; lint global houetor (62 erreurs pré-existantes) ; évolutions roadmap (compte agent WP moindre privilège, rate limit rewrites séparé, PHPUnit) ; 3 `probe-*.mjs` untracked (écartés).
+4. Serveur Next : relançable via `next build` + `next start -p 3010` (procédure ci-dessous) ; les tests passent par `POST http://localhost:3010/mcp` avec header `X-HWT-Token` (token dans `.env.learning`).
+
+**Procédure de relance du serveur MCP prod (si relancé un jour)** :
+```powershell
+cd C:\Users\Kimsh\Pictures\Screenshots\houetor
+node_modules\.bin\next build      # REQUIS si .env.local a changé (inlining NEXT_PUBLIC_*)
+node node_modules/next/dist/bin/next start -p 3010
+# Test rapide : POST /mcp {"jsonrpc":"2.0","method":"list_connected_sites","params":{},"id":1} + header X-HWT-Token
+```

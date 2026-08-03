@@ -91,15 +91,14 @@ Exécution type : `wsl -u root -e bash -c 'cd /mnt/c/Users/Kimsh/Desktop/lab/wor
 8. **Ne pas exposer de secrets** (clés, token, mots de passe) dans les docs ni dans les sorties de chat.
 9. **Preuve avant conclusion** : un comportement n'est vrai que s'il est testé et consigné en brut.
 
-## 8. État actuel (2026-08-02 — LAB CLÔTURÉ, mission portage exécutée)
+## 8. État actuel (2026-08-03 — validation MCP prod en conditions réelles)
 
 - **Version** : **2.7.0** (header + `HWC_VERSION` + stable tag + package.json MCP cohérents)
-- **Clôture lab** : `opencode-learning` fusionnée dans `main` (connect) — les 2 branches = `08c6199`, poussées
-- **Portage production** : branche `mcp-block-crud-2.7.0` du repo `houetor` (`fc91bd5` : tools.ts +155, dispatch.ts +435/-41, error-translator.ts nouveau ; route.ts/parser.ts intacts ; tsc 0 erreur ; lint app/mcp 0 erreur) — **PAS de merge dans main houetor** ; zip 2.7.0 dans `houetor/outputs/` (sha256 `AA7E89A8…`)
-- **E2E site neuf** : TasteWP « Fix Day » (https://fixday.s6-tastewp.com), plugin 2.7.0 actif, 6 scénarios PASS (CAS 409, ancre 404, wrap 400, dry_run sans effet)
+- **Clôture lab** : `opencode-learning` fusionnée dans `main` (connect) — branches = `4066a42` (Exp 017 selfhare 1.0.2), poussées
+- **Portage production** : branche `mcp-block-crud-2.7.0` du repo `houetor` (`fc91bd5` + `dae06a8` + `603849c` : tools.ts +155, dispatch.ts +435/-41, error-translator.ts nouveau ; route.ts/parser.ts intacts ; tsc 0 erreur ; lint app/mcp 0 erreur) — **PAS de merge dans main houetor** ; zip 2.7.0 dans `houetor/outputs/` (sha256 `AA7E89A8…`)
+- **VALIDATION PROD (Exp 018, 2026-08-03)** : site TasteWP « Fix Day » (https://fixday.s6-tastewp.com) **connecté au dashboard HOUETOR** (Supabase connected_sites, token profil ONG) + starter site uploadé (contenu réel) → **portage MCP testé en conditions réelles 9/9 PASS** (GET SSE 32 tools, list_connected_sites, cycle CRUD 2.7.0 complet sur la page About : dry_run, create, CAS OK, 409 périmé refusé, batch update_blocks, move, delete → page restaurée à l'identique). Blocage Supabase résolu : `.env.local` du repo houetor ré-écrit avec URL + clés (gitignoré, jamais commité ; pull Vercel CLI impossible, compte sans droit de décryptage)
 - **Scores de preuve (2.7.0)** : plugin — structural 42/42, V3 32/32, rétention 9/9, transform 21/21, tier policy 11/11 ; MCP miroir — 42/42 unitaires, 52/52 intégration, 41/41 scénarios
-- **Git** : connect `main` = `opencode-learning` = `08c6199` (poussés) ; houetor `mcp-block-crud-2.7.0` = `fc91bd5` (poussé)
-- **Reste (actions utilisateur)** : connexion Fix Day au dashboard HOUETOR ; merge/rollout `mcp-block-crud-2.7.0` ; `ghjk.py` + `probe-*.mjs` ; audit selfhare (hors périmètre)
+- **Reste (actions utilisateur)** : ops structurelles en réel à poursuivre (transform/wrap/duplicate/unwrap, page Accueil) ; merge/rollout `mcp-block-crud-2.7.0` ; lint global houetor (62 erreurs) ; évolutions roadmap (compte agent WP moindre privilège, rate limit rewrites séparé, PHPUnit) ; audit selfhare corrigé (1.0.2, Exp 017)
 
 ## 9. Prochaines étapes possibles (roadmap)
 
