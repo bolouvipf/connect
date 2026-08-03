@@ -235,7 +235,23 @@ Relance du serveur WP lab si tombé : `wsl -u root -e bash -c "systemctl restart
 3. Diff md5 « anormal » constaté en batterie 1 = **1 seul octet** : `size-full/>` → `size-full />` — normalisation standard de `serialize_blocks` WP (prouvé par diff révision 19 vs contenu courant) — pas un résidu.
 4. API REST core Fix Day : nonce requis même en GET → récupéré dans `wpApiSettings` de `post.php` (login cookies wp-admin, probes probe-login2/probe-raw4).
 
-**Pour reprendre** : validation réelle du CRUD bloc 2.7.0 **terminée** (Exp 018 CRUD 9/9 + Exp 019 structurel 12/12 + Exp 020 scénarios utilisateur 9/9). Reste (décisions utilisateur) : merge/rollout `mcp-block-crud-2.7.0` → main houetor ; lint global houetor (62 erreurs) ; roadmap (compte agent WP moindre privilège, rate limit rewrites séparé, PHPUnit) ; 3 `probe-*.mjs` untracked (écartés) ; serveur Next à relancer si besoin (procédure Exp 018). Docs : EXPERIMENTS_LOG Exp 020.
+**Pour reprendre** : validation réelle du CRUD bloc 2.7.0 **terminée** (Exp 018 CRUD 9/9 + Exp 019 structurel 12/12 + Exp 020 scénarios utilisateur 9/9 + Exp 021 positionnement précis/bloc enrichi). Reste (décisions utilisateur) : merge/rollout `mcp-block-crud-2.7.0` → main houetor ; lint global houetor (62 erreurs) ; roadmap (compte agent WP moindre privilège, rate limit rewrites séparé, PHPUnit) ; 3 `probe-*.mjs` untracked (écartés) ; serveur Next à relancer si besoin (procédure Exp 018). Docs : EXPERIMENTS_LOG Exp 021.
+
+## POSITIONNEMENT PRÉCIS + BLOC ENRICHI — Session 2026-08-03 (Exp 021 : fond vert + image après « About Us », succès utilisateur)
+
+**Mission** : sur la page About de Fix Day, créer un bloc **juste après** la section « About Us / About BrightSmile Dental / Dedicated to transforming smiles… », avec **fond vert + image** (capture locale fournie en pièce jointe). **Rendu vérifié par l'utilisateur : SUCCÈS.**
+
+| Étape | État | Preuve |
+|---|---|---|
+| **Localisation cible** | ✅ impossible via `get_page_blocks` seul (contenu des blocs starter vide, ref null) → post_content brut via REST core (nonce) + parseur top-level v3 → About Us = **racine index 0** | racine `@0-1527` |
+| **Upload image locale** | ✅ `POST /wp-json/wp/v2/media` (binaire + Content-Disposition + nonce) → **média id 98** `…/2026/08/capture-agent-houetor.png` | — |
+| **Création bloc** | ✅ `create_block` MCP prod : `core/group`, div fond vert `#16a34a` + titre + texte + `<img>`, `position: after anchor_index '0'`, CAS frais → **ref `agenttest-c4d8da4ddf28`, index 1** | — |
+| **Double vérif** | ✅ plugin (index 1, voisin = About Us index 0) + raw REST (racine `@1527-2291` entre `@0-1527` et `@2293-7486`) | — |
+| **Vision image** | ✅ modèle chat sans vision → description via API **Gemini 3.6 flash** (base64, clé jamais affichée) ; anciens modèles 404 → liste `/v1beta/models` | — |
+
+**Difficultés notables** : modèle chat sans entrée image ; `gemini-2.0/2.5-flash` retirés (404) ; `get_page_blocks` ne montre pas le contenu des blocs starter (résolution texte→index via raw REST) ; 2 parseurs JS buggés avant v3 (slash dans `atomic-wind/box`, self-closing) ; nonce même en GET ; `wp_kses_post` filtre les styles (fond vert = style inline simple, OK). Détails : `EXPERIMENTS_LOG.md` Exp 021.
+
+**État Fix Day (blocs de test en place, nettoyage sur demande)** : accueil ×2 (bas de page + après blog index 3) + About ×1 (section verte index 1). About md5 d'origine `a40568809ad0d4c949468cd29616c2dd`.
 
 ## SCÉNARIOS UTILISATEUR PROD — Session 2026-08-03 (Exp 020 : demandes en langage naturel via MCP prod, 9/9 PASS)
 

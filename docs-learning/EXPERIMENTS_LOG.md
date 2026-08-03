@@ -320,3 +320,29 @@ node node_modules/next/dist/bin/next start -p 3010
 - Page 5 restaurée à l'identique ; les refs `e2es20-` ne laissent aucun résidu (vérifié dans le script + cleanup automatique en début de script si besoin).
 
 **Pour reprendre** : serveur Next à relancer si tombé (procédure Exp 018 : `next build` + `next start -p 3010`). Validation réelle **complète** : Exp 018 CRUD 9/9 + Exp 019 structurel 12/12 + Exp 020 scénarios utilisateur 9/9. Reste (décisions utilisateur) : merge/rollout `mcp-block-crud-2.7.0` → main houetor ; lint global houetor (62 erreurs) ; roadmap (compte agent WP moindre privilège, rate limit rewrites séparé, PHPUnit) ; 3 `probe-*.mjs` untracked (écartés).
+
+## Exp 021 — Positionnement précis + bloc enrichi (fond vert + image) sur Fix Day, page About (2026-08-03)
+
+**Mission utilisateur** : sur la page About, créer un bloc **juste après** la section « About Us / About BrightSmile Dental / Dedicated to transforming smiles… », avec **fond vert et une image** (capture locale `Capture d'écran 2026-07-04 015437.png` fournie en pièce jointe). Vérification humaine du rendu : **succès confirmé par l'utilisateur**.
+
+**Exécution** (chaîne complète MCP prod → Supabase → plugin, + REST core WP) :
+1. **Localisation de la cible** : impossible via `get_page_blocks` (contenu des blocs starter `atomic-wind/box` = vide, ref = null) → récupération du `post_content` brut via REST core (`/wp-json/wp/v2/pages/5?context=edit`, nonce récupéré dans `wpApiSettings` de `post.php?post=5&action=edit`) + parseur de blocs top-level (v3, correct) → section About Us = **racine index 0**.
+2. **Upload de l'image locale** vers WP : `POST /wp-json/wp/v2/media` avec body binaire + `Content-Disposition: attachment; filename="capture-agent-houetor.png"` + `Content-Type: image/png` + `X-WP-Nonce` → **média id 98**, URL `…/uploads/2026/08/capture-agent-houetor.png`.
+3. **Création du bloc** : `create_block` via MCP prod — `block_name: core/group`, contenu HTML (div fond vert `#16a34a` + titre + texte + `<img src=…>`), `position: after`, `anchor_index: '0'`, CAS `expected_hash` frais → **ref `agenttest-c4d8da4ddf28`, index 1**.
+4. **Double vérification indépendante** : plugin (`get_page_blocks` : index 1, voisin avant = index 0 About Us) **et** parseur v3 du raw REST (racine `@1527-2291` entre About Us `@0-1527` et la section suivante `@2293-7486`).
+
+**Difficultés rencontrées et solutions** :
+
+| # | Difficulté | Résolution |
+|---|---|---|
+| 1 | **Le modèle de chat ne supporte pas les images** : la capture envoyée par l'utilisateur est illisible directement (error « this model does not support image input ») | Contournement « vision » : description de l'image via **API Gemini** (`gemini-3.6-flash`, clé de `.env.learning`, base64 inline, jamais affichée) — la nature du visuel importait peu pour l'utilisateur (test de positionnement) |
+| 2 | **Anciens modèles Gemini indisponibles** : `gemini-2.0-flash` / `gemini-2.5-flash` → 404 « no longer available to new users » | Lister `GET /v1beta/models` → choisir le modèle le plus récent listé (`gemini-3.6-flash`), fallback 3.5 flash |
+| 3 | **`get_page_blocks` n'expose pas le contenu des blocs starter** (`atomic-wind/box` : content vide, ref null) → impossible d'identifier la section cible par son texte via le plugin seul | Analyse du **post_content brut** via REST core + parseur de blocs top-level pour mapper texte → index racine |
+| 4 | **Parseurs de blocs JS buggés ×2** : (a) regex `[^\s\/>]` tronquait le nom au `/` de `atomic-wind/box` → tous les blocs traités comme fermants ; (b) gestion fausse des self-closing et du niveau racine (31 « racines » fantômes) | Parseur v3 : un seul regex `<!--\s*(\/?wp:)([^\s>]+)([^>]*)-->` + pile, close→pop, self-closing si attrs finissent par `/` → **8 racines exactes = celles du plugin** |
+| 5 | **Nonce requis même en GET** sur l'API REST core de Fix Day | Login wp-admin (cookies) + nonce extrait de `wpApiSettings` (méthode probe-login2/probe-raw4) |
+| 6 | **Filtrage `wp_kses_post`** du plugin sur le contenu des blocs (les `url()`/expressions CSS seraient strippées) | Fond vert via style inline simple (`background-color`, flex…) + `<img src>` standard — tout passe, rendu vérifié visuellement par l'utilisateur |
+
+**Découvertes structurantes** :
+- **Le contrat de positionnement précis est validé en réel** : `position: after + anchor_index` insère le bloc exactement au bon endroit (entre 2 sections), vérifié par 2 sources indépendantes. L'agent peut cibler un bloc starter (sans ref HWC) par son **index**, après avoir résolu le texte → index via le contenu brut.
+- **L'upload d'image locale est possible sans accès shell** : REST core `/media` + binaire + `Content-Disposition` — prérequis pour « ajouter un bloc avec cette image » (l'agent peut aussi passer une URL existante directement dans `<img src>`).
+- Les 3 blocs de test restants sur Fix Day : accueil ×2 (bas de page + après blog) + About ×1 (section verte) — **conservés pour vérification utilisateur, nettoyage sur demande** (delete + md5 d'origine `a40568809ad0d4c949468cd29616c2dd` pour About).
