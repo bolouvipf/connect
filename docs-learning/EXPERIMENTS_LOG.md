@@ -346,3 +346,52 @@ node node_modules/next/dist/bin/next start -p 3010
 - **Le contrat de positionnement précis est validé en réel** : `position: after + anchor_index` insère le bloc exactement au bon endroit (entre 2 sections), vérifié par 2 sources indépendantes. L'agent peut cibler un bloc starter (sans ref HWC) par son **index**, après avoir résolu le texte → index via le contenu brut.
 - **L'upload d'image locale est possible sans accès shell** : REST core `/media` + binaire + `Content-Disposition` — prérequis pour « ajouter un bloc avec cette image » (l'agent peut aussi passer une URL existante directement dans `<img src>`).
 - Les 3 blocs de test restants sur Fix Day : accueil ×2 (bas de page + après blog) + About ×1 (section verte) — **conservés pour vérification utilisateur, nettoyage sur demande** (delete + md5 d'origine `a40568809ad0d4c949468cd29616c2dd` pour About).
+
+## Exp 022 — Audit de persistance des données (MCP prod + plugin connect) (2026-08-03)
+
+**Question utilisateur** : les modifications apportées via l'agent ne gardent-elles pas les infos « partagées » vers un site comme du **JSON volatil** qui pourrait disparaître rapidement (ou à la déconnexion du site) ? → **Audit de code prod, aucun changement.**
+
+**Verdict : AUCUNE donnée de travail en JSON volatil — tout est en base durable.** Preuves :
+
+| Donnée | Stockage | Survit à la déconnexion |
+|---|---|---|
+| Blocs créés/modifiés (contenu des pages) | DB WP `wp_posts.post_content` (HTML sérialisé, pas de JSON) | ✅ |
+| Refs HWC (`agenttest-…`) | commentaires HTML dans `post_content` | ✅ |
+| Révisions avant écriture | `wp_posts` (post_type `revision`) | ✅ |
+| Journal d'audit | table `houetor_connect_actions_log` | ✅ |
+| Token plugin | option `hwc_token` (DB WP) | ✅ |
+| Lien site↔compte (url+token pour l'agent) | Supabase `connected_sites` | ❌ supprimé — seul le lien, pas les données |
+| Annonces/formations/produits injectés | Supabase (tables métier) | ✅ |
+
+**Preuves dans le code** :
+- `app/mcp/dispatch.ts` : **100 % stateless** — aucun `Map`/variable globale/cache/localStorage ; chaque requête = `resolveSite()` (relecture Supabase `dispatch.ts:153`) + `pluginRequest()` (fetch direct plugin `dispatch.ts:165`). Aucun JSON intermédiaire conservé.
+- Déconnexion = `DELETE /api/connect-site` (`app/api/connect-site/route.ts:247-292`) : supprime **uniquement** la ligne `connected_sites` (url+token) — ne touche ni post_content, ni audit, ni options, ni tables métier.
+- Plugin : les seuls `set_transient` sont fonctionnels/cosmétiques : cache de rendu HTML 5 min (`class-api-fetcher.php:52`), statut de connexion revérifié (`class-connect-status.php`), rate limit 60 s volontaire (`class-rest-api.php:142`). Aucun transient ne porte du contenu édité.
+
+**Cas où les données disparaissent vraiment** : (1) suppression/expiration du site WP lui-même (la copie Supabase des injectés survit) ; (2) désinstallation du plugin → options seules supprimées, post_content intact (`uninstall.php`) ; (3) déconnexion → l'agent ne peut plus cibler le site (but), mais l'écrit reste côté site, token conservé pour reconnexion.
+
+**Pour reprendre** : même audit à faire côté `houetor-selfhare` (persistance de ses données : previews, license, journal, routines, relay).
+
+## Exp 023 — Audit de persistance des données côté `houetor-selfhare` (2026-08-03)
+
+**Question utilisateur** : vérifier la même chose que Exp 022 pour selfhare — les données « partagées » (JSON) peuvent-elles disparaître rapidement ou à la déconnexion ? → **Audit de code, aucun changement** (état 1.0.2, Exp 017).
+
+**Verdict : tous les JSON vivent en tables DB WordPress (durables). Aucun fichier JSON sur disque, aucun cache mémoire (aucun `file_put_contents` ni `wp_cache_*` dans le code). Seuls volatils : 2 transients volontaires.**
+
+| Donnée | Stockage | Désactivation | Désinstallation |
+|---|---|---|---|
+| Modifications de pages (injections/blocs) | `wp_posts.post_content` (écrit direct `$wpdb->update`, `class-agent-dispatch.php:74-112`) | ✅ intact | ✅ intact (`uninstall.php` ne touche pas `wp_posts`) |
+| Mémoire agent / onboarding (`context_json`) | table `houetor_selfhare_memory` | ✅ intact | ❌ **DROP TABLE** |
+| Routines (`params` JSON) | table `houetor_selfhare_routines` | ✅ intact (cron seul nettoyé : `clear_schedule()`) | ❌ **DROP TABLE** |
+| Journal d'audit (`before_json`/`after_json`) | table `houetor_selfhare_actions_log` | ✅ intact | ❌ **DROP TABLE** |
+| License (chiffrée AES-256-CBC) | option `houetor_selfhare_license` | ✅ intact | ❌ delete_option |
+| Plan / auto_mode / activated_at | options | ✅ | ❌ delete_option |
+| Cache pages (id/title/slug) | option `houetor_selfhare_pages_cache` (régénéré à la volée par `get()`) | ✅ | ❌ (régénérable) |
+| Produits WC | post_meta WP (`_regular_price`, `_manage_stock`, `_stock`) | ✅ | ✅ (meta de post) |
+| **Previews** | transient `sh_preview_<token>` **TTL 600 s** + usage unique | — | — |
+| **Rate limit** | transients 60 s | — | — |
+
+**Découvertes structurantes** :
+- **Pas de concept de « site connecté »/déconnexion côté selfhare** : la « connexion » = license en option (chiffrée, Exp 017). Rien n'est supprimé à la désactivation (juste le cron). Les transients preview/rate limit sont **volontaires** (jeton de sécurité à usage unique 10 min, compteur 60 s) — aucune donnée utilisateur dedans.
+- **Différence notable vs connect (Exp 022)** : à la désinstallation, selfhare **DROP ses 3 tables** (mémoire, routines, audit) et supprime les options — le contenu des pages reste mais l'historique agent (mémoire, routines, journal, license) est **détruit**. connect, lui, ne supprime aucune table à l'uninstall (seulement des options, audit log survit).
+- Les JSON (`context_json`, `params`, `before_json`/`after_json`) sont des champs LONGTEXT de tables WP → survivent aux redémarrages, à la déconnexion (inexistante) et aux expirations de transients ; ils ne disparaissent qu'à la **désinstallation volontaire** du plugin.
