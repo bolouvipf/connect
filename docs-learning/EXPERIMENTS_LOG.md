@@ -296,3 +296,27 @@ node node_modules/next/dist/bin/next start -p 3010
 - L'API REST core de Fix Day exige un nonce même en GET : le récupérer dans `wpApiSettings` de `post.php?post=2&action=edit` (login via cookies wp-admin, méthode probe-login2/probe-raw4).
 
 **État du site après tests** : page 2 restaurée à l'identique (md5 final = md5 de début de session `56f889f1…`), aucune écriture résiduelle, révisions conservées (normales). Toutes les ops structurelles 2.7.0 sont désormais validées en conditions réelles : transform (dry_run+réel+restauration), wrap (création+refus plage inversée), unwrap (ref groupe), duplicate (refs uniques) — en plus du CRUD complet de l'Exp 018 (9/9).
+
+## Exp 020 — Scénarios utilisateur réels via le MCP prod (Fix Day, page 5 About) (2026-08-03)
+
+**Contexte** : l'utilisateur a demandé de continuer les tests sur le site TasteWP → relance du serveur Next (`next build` + `next start -p 3010`, il était tombé) + batterie de **scénarios « demandes utilisateur en langage naturel »** exécutés À TRAVERS le MCP prod (portage `mcp-block-crud-2.7.0`), chaîne complète Agent → app/mcp → Supabase → plugin Fix Day. Script : `Temp/opencode/mcp-e2e-scenarios-prod.mjs` (page 5 About, starter : 5 blocs `atomic-wind/box`).
+
+**Résultat : 9/9 PASS** (8 scénarios + état initial ; 8 écritures réelles dans le budget rate limit 10/60s, retry 429 intégré, aucun 429 rencontré) :
+
+| # | Demande utilisateur | Exécution agent | Résultat |
+|---|---|---|---|
+| S1 | « Ajoute un bloc de texte en bas de la page About » | get_page_blocks (md5) → create_block CAS → relecture | ref `e2es20-cb5b50e8bd14`, index 5 (fin de page) ✓ |
+| S2 | « Modifie le texte de ce bloc » | update_block_content CAS → relecture | contenu v2 présent après relecture ✓ |
+| S3 | « Répétition générale : transforme en titre SANS enregistrer » | transform dry_run → relecture | md5 inchangé, toujours paragraph ✓ |
+| S4 | « Transforme-le réellement en titre, puis remets-le en paragraphe » | transform → heading (ref conservée) → transform retour | round-trip OK, ref stable ✓ |
+| S5 | « Applique mes deux corrections en une seule opération » | update_blocks batch (2 updates) → relecture | 1 révision, contenu final vérifié ✓ |
+| S6 | « Conflit : la page a été modifiée ailleurs — refuse l'écriture obsolète » | update avec expected_hash périmé | **409 « Conflit CAS : le contenu de la page a changé depuis votre dernière lecture »**, contenu intact, md5 inchangé ✓ |
+| S7 | « Remonte ce bloc en haut de page, puis remets-le à sa place » | move_block start → index 0 → move_block end | round-trip positions OK ✓ |
+| S8 | « Supprime le bloc temporaire » | delete_block CAS → relecture | aucun résidu, **md5 final == md5 initial** (`a40568809ad0d4c949468cd29616c2dd`) ✓ |
+
+**Découvertes** :
+- La chaîne complète (MCP prod + Supabase + plugin 2.7.0) exécute les demandes utilisateur **sans aucune erreur** en conditions réelles : c'est la preuve finale du contrat ONBOARDING §1 (« toute action CRUD demandée par l'utilisateur s'exécute sans erreur ») sur un site réel connecté.
+- Le message de conflit 409 prod est bien traduit avec conseil : « Conflit CAS : le contenu de la page a changé depuis votre dernière lecture (Conflit de con… » (truncated) — l'agent sait relire.
+- Page 5 restaurée à l'identique ; les refs `e2es20-` ne laissent aucun résidu (vérifié dans le script + cleanup automatique en début de script si besoin).
+
+**Pour reprendre** : serveur Next à relancer si tombé (procédure Exp 018 : `next build` + `next start -p 3010`). Validation réelle **complète** : Exp 018 CRUD 9/9 + Exp 019 structurel 12/12 + Exp 020 scénarios utilisateur 9/9. Reste (décisions utilisateur) : merge/rollout `mcp-block-crud-2.7.0` → main houetor ; lint global houetor (62 erreurs) ; roadmap (compte agent WP moindre privilège, rate limit rewrites séparé, PHPUnit) ; 3 `probe-*.mjs` untracked (écartés).

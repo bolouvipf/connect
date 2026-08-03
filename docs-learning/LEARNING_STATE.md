@@ -235,4 +235,23 @@ Relance du serveur WP lab si tombé : `wsl -u root -e bash -c "systemctl restart
 3. Diff md5 « anormal » constaté en batterie 1 = **1 seul octet** : `size-full/>` → `size-full />` — normalisation standard de `serialize_blocks` WP (prouvé par diff révision 19 vs contenu courant) — pas un résidu.
 4. API REST core Fix Day : nonce requis même en GET → récupéré dans `wpApiSettings` de `post.php` (login cookies wp-admin, probes probe-login2/probe-raw4).
 
-**Pour reprendre** : validation réelle du CRUD bloc 2.7.0 **terminée** (Exp 018 CRUD 9/9 + Exp 019 structurel 12/12). Reste (décisions utilisateur) : merge/rollout `mcp-block-crud-2.7.0` → main houetor ; lint global houetor (62 erreurs) ; roadmap (compte agent WP moindre privilège, rate limit rewrites séparé, PHPUnit) ; 3 `probe-*.mjs` untracked (écartés) ; serveur Next à relancer si besoin (procédure Exp 018). Docs : EXPERIMENTS_LOG Exp 019.
+**Pour reprendre** : validation réelle du CRUD bloc 2.7.0 **terminée** (Exp 018 CRUD 9/9 + Exp 019 structurel 12/12 + Exp 020 scénarios utilisateur 9/9). Reste (décisions utilisateur) : merge/rollout `mcp-block-crud-2.7.0` → main houetor ; lint global houetor (62 erreurs) ; roadmap (compte agent WP moindre privilège, rate limit rewrites séparé, PHPUnit) ; 3 `probe-*.mjs` untracked (écartés) ; serveur Next à relancer si besoin (procédure Exp 018). Docs : EXPERIMENTS_LOG Exp 020.
+
+## SCÉNARIOS UTILISATEUR PROD — Session 2026-08-03 (Exp 020 : demandes en langage naturel via MCP prod, 9/9 PASS)
+
+**Mission** : continuer les tests sur le site TasteWP Fix Day — exécuter des scénarios « demandes utilisateur réalistes » À TRAVERS le portage MCP prod (branche `mcp-block-crud-2.7.0`, chaîne Agent → app/mcp → Supabase → plugin) sur la page 5 About (starter : 5 blocs `atomic-wind/box`). Serveur Next relancé (il était tombé : `next build` + `next start -p 3010`). Script : `Temp/opencode/mcp-e2e-scenarios-prod.mjs`.
+
+| Scénario | État |
+|---|---|
+| **S1 « Ajoute un bloc en bas de la page »** | ✅ create_block CAS → ref `e2es20-cb5b50e8bd14`, index 5 (fin) |
+| **S2 « Modifie le texte du bloc »** | ✅ update CAS → contenu vérifié par relecture |
+| **S3 « Répétition générale SANS enregistrer »** | ✅ transform dry_run : md5 inchangé, toujours paragraph |
+| **S4 « Transforme en titre puis remets en paragraphe »** | ✅ round-trip heading↔paragraph, ref conservée |
+| **S5 « Deux corrections en une seule opération »** | ✅ batch update_blocks : 1 révision, contenu final vérifié |
+| **S6 « Conflit : refuse l'écriture obsolète »** | ✅ **409 « Conflit CAS : le contenu de la page a changé… »**, contenu intact, md5 inchangé |
+| **S7 « Remonte le bloc en haut puis remets-le »** | ✅ move start (index 0) → move end, round-trip OK |
+| **S8 « Supprime le bloc temporaire »** | ✅ aucun résidu, **md5 final == md5 initial** (`a40568809ad0d4c949468cd29616c2dd`) |
+
+**Preuve finale du contrat ONBOARDING §1** : la chaîne prod complète exécute les demandes utilisateur **sans aucune erreur** en conditions réelles. 8 écritures réelles ≤ budget rate limit 10/60s (aucun 429 rencontré, retry intégré).
+
+**Pour reprendre** : validation réelle **complète** (Exp 018 + 019 + 020). Reste (décisions utilisateur) : merge/rollout `mcp-block-crud-2.7.0` → main houetor ; lint global houetor (62 erreurs) ; roadmap (compte agent WP moindre privilège, rate limit rewrites séparé, PHPUnit) ; 3 `probe-*.mjs` untracked (écartés) ; serveur Next à relancer si besoin (procédure Exp 018). Docs : EXPERIMENTS_LOG Exp 020.
