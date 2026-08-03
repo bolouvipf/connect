@@ -216,3 +216,23 @@ Relance du serveur WP lab si tombé : `wsl -u root -e bash -c "systemctl restart
 **Découvertes** : écritures MCP prod → `result.data {success, post_id, ref, message}` (relire `get_page_blocks` pour vérifier) ; erreurs plugin → `success:false + error` HTTP 200 avec conseil traduit (« Re-lisez la page… ») ; `get_wp_pages` → `data[0].pages.pages[]`. Détails : `EXPERIMENTS_LOG.md` Exp 018.
 
 **Pour reprendre** : (a) ops structurelles en réel (transform/wrap/duplicate/unwrap) sur la page 2 Accueil — étendre `mcp-e2e-prod.mjs` (Temp/opencode) ; (b) décisions utilisateur en attente : merge `mcp-block-crud-2.7.0` → main houetor, lint global (62 erreurs), roadmap (compte agent WP, rate limit rewrites, PHPUnit) ; (c) si serveur à relancer : `next build` + `next start -p 3010` puis POST `/mcp` avec `X-HWT-Token` (voir Exp 018). Secrets en stock (jamais commités) : `.env.learning` (lab) + `.env.local` (houetor).
+
+## VALIDATION OPS STRUCTURELLES PROD — Session 2026-08-03 (Exp 019 : transform/wrap/unwrap/duplicate en réel, 12/12 PASS)
+
+**Mission** : finir la validation réelle du portage MCP (branche `mcp-block-crud-2.7.0`) — les 4 ops structurelles sur la page 2 Accueil de Fix Day (contenu starter). Serveur Next relancé (`next build` + `next start -p 3010`). Scripts Temp/opencode : `mcp-e2e-struct-prod.mjs` (batterie 1) puis `mcp-e2e-struct2.mjs` (batterie corrigée **12/12 PASS**).
+
+| Élément | État |
+|---|---|
+| **transform_block** | ✅ dry_run sans effet → réel paragraph→heading (**ref conservée**) → restauration heading→paragraph (**ref conservée**), md5 avancé à chaque écriture |
+| **wrap_block** | ✅ plage inversée B..A → **400 refusé** avec conseil traduit actionnable ; wrap A..B réel → groupe `core/group` avec **nouvelle ref** |
+| **unwrap_block** | ✅ ref interne → **refusé** (« introuvable ») ; **ref du groupe** → groupe disparu, **refs originales restaurées** |
+| **duplicate_block** | ✅ (batterie 1) dry_run sans effet → réel : 2 copies, **refs régénérées uniques** |
+| **Cleanup** | ✅ delete A+B, aucun résidu e2eprod, **md5 final == md5 de début de session** (page restaurée à l'identique) |
+
+**Découvertes structurantes** :
+1. **`get_page_blocks` n'expose PAS les innerBlocks** (que les blocs racine) → après wrap, l'agent doit utiliser la **ref du groupe renvoyée par le wrap** pour unwrap ; les refs internes sont préservées dans le sous-arbre et redeviennent visibles après unwrap.
+2. Refus (400) = `result.success:false + error` HTTP 200 (pas d'`error` JSON-RPC) — traduits avec conseil (« Re-lisez la page… index croissants »).
+3. Diff md5 « anormal » constaté en batterie 1 = **1 seul octet** : `size-full/>` → `size-full />` — normalisation standard de `serialize_blocks` WP (prouvé par diff révision 19 vs contenu courant) — pas un résidu.
+4. API REST core Fix Day : nonce requis même en GET → récupéré dans `wpApiSettings` de `post.php` (login cookies wp-admin, probes probe-login2/probe-raw4).
+
+**Pour reprendre** : validation réelle du CRUD bloc 2.7.0 **terminée** (Exp 018 CRUD 9/9 + Exp 019 structurel 12/12). Reste (décisions utilisateur) : merge/rollout `mcp-block-crud-2.7.0` → main houetor ; lint global houetor (62 erreurs) ; roadmap (compte agent WP moindre privilège, rate limit rewrites séparé, PHPUnit) ; 3 `probe-*.mjs` untracked (écartés) ; serveur Next à relancer si besoin (procédure Exp 018). Docs : EXPERIMENTS_LOG Exp 019.

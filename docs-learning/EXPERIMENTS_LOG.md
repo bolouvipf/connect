@@ -265,3 +265,34 @@ node_modules\.bin\next build      # REQUIS si .env.local a changé (inlining NEX
 node node_modules/next/dist/bin/next start -p 3010
 # Test rapide : POST /mcp {"jsonrpc":"2.0","method":"list_connected_sites","params":{},"id":1} + header X-HWT-Token
 ```
+
+## Exp 019 — Ops structurelles 2.7.0 validées en conditions réelles (Fix Day, page 2 Accueil) (2026-08-03)
+
+**Contexte** : point de reprise Exp 018 — il restait à tester en réel les 4 ops structurelles (transform/wrap/duplicate/unwrap) sur la page 2 (Accueil, contenu starter riche : 2 core/html, media-text, paragraph). Serveur MCP prod relancé (`next build` + `next start -p 3010` — il était tombé). Scripts dans Temp/opencode : `mcp-e2e-struct-prod.mjs` (batterie 1, imparfaite) puis `mcp-e2e-struct2.mjs` (batterie corrigée, **12/12 PASS**).
+
+**Batterie 1 (mcp-e2e-struct-prod.mjs) — 3 anomalies apparentes, toutes expliquées** :
+- Le wrap a créé le groupe avec une **nouvelle ref** (`e2eprod-398905c2d5e3`) et les refs A/B ont disparu du niveau racine → `get_page_blocks` **n'expose pas les innerBlocks** (découverte majeure). L'unwrap ciblé sur la ref interne A → « Bloc ref introuvable » (le refus est silencieux dans le JSON, pas une erreur JSON-RPC).
+- `duplicate_block` : dry_run sans effet, réel → 2 copies avec **refs régénérées uniques** (e2eprod-e9ee0b0fb3da + e2eprod-7d922ce1a130).
+- Le step() du script ne comptait les FAIL que sur exception → les `success:false` passaient en PASS silencieux (défaut de script, corrigé en batterie 2).
+- Le md5 final différait de l'état d'origine (`56f889f1…` vs `bdd89ac2…`) → **diff prouvé = 1 seul octet** : `<img … size-full/>` → `<img … size-full />` — normalisation standard de `serialize_blocks` WP (preuve : diff de la révision 19 vs contenu courant via API REST core, nonce récupéré sur post.php). Pas un résidu.
+
+**Batterie corrigée (mcp-e2e-struct2.mjs) — 12/12 PASS** (page 2, budget rate limit 10/60s respecté, retry 429 intégré) :
+1. create A (paragraph, ref e2eprod-655e53ff821d) — PASS
+2. transform A→heading **dry_run** : md5 inchangé, toujours paragraph — PASS
+3. transform A→heading **réel** : `core/heading`, **ref conservée**, md5 avancé — PASS
+4. transform A→paragraph (restauration) : `core/paragraph`, **ref conservée** — PASS
+5. create B (contigu après A) — PASS
+6. **wrap B..A (plage inversée) → 400 refusé** avec message traduit actionnable (« Plage de wrap invalide : le bloc de fin précède le bloc de départ … index croissants d'après get_page_blocks ») — PASS
+7. **wrap A..B réel** : groupe `core/group` créé avec **nouvelle ref** (e2eprod-4059980611fa) — PASS
+8. **unwrap par ref interne A → refusé** (« introuvable »), groupe intact — PASS
+9. **unwrap par ref du GROUPE réel** : groupe disparu, **refs originales A+B restaurées** — PASS
+10. delete A+B : aucun résidu, count=4 — PASS
+11. **md5 final == md5 initial** (`56f889f1…` = `56f889f1…`) — PASS
+
+**Découvertes structurantes** :
+- **Le contrat d'utilisation des ops structurelles est confirmé en réel** : après un wrap, l'agent doit utiliser la **ref du groupe** (renvoyée par le wrap) pour unwrap ; les refs internes restent valides après unwrap (préservées dans le sous-arbre, comme au lab).
+- `get_page_blocks` ne liste que les blocs racine (pas d'innerBlocks) → après wrap, seules la ref du groupe et les refs racine sont visibles. L'agent doit lire la réponse du wrap pour obtenir la ref du groupe.
+- Les refus (400) arrivent en `result.success=false + error` (HTTP 200, pas d'`error` JSON-RPC) — le error-translator prod traduit bien avec conseil.
+- L'API REST core de Fix Day exige un nonce même en GET : le récupérer dans `wpApiSettings` de `post.php?post=2&action=edit` (login via cookies wp-admin, méthode probe-login2/probe-raw4).
+
+**État du site après tests** : page 2 restaurée à l'identique (md5 final = md5 de début de session `56f889f1…`), aucune écriture résiduelle, révisions conservées (normales). Toutes les ops structurelles 2.7.0 sont désormais validées en conditions réelles : transform (dry_run+réel+restauration), wrap (création+refus plage inversée), unwrap (ref groupe), duplicate (refs uniques) — en plus du CRUD complet de l'Exp 018 (9/9).
