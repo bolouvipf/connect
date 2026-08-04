@@ -6,6 +6,7 @@
     var state = {
         lastToolCall: null,
         lastToolResult: null,
+        lastUserMessage: null,
     };
 
     var LABELS = {
@@ -196,6 +197,69 @@
             $messages.scrollTop($messages[0].scrollHeight);
         }
 
+        function sendChat(message, lastToolResult, lastToolName, opts) {
+            opts = opts || {};
+            if (!opts.silent) {
+                appendMessage(message, 'user');
+            }
+            $loading.show();
+            $tool.hide();
+
+            $.ajax({
+                url: HouetorSelfHare.ajax_url,
+                method: 'POST',
+                data: {
+                    action: 'houetor_selfhare_chat',
+                    message: message,
+                    attachment_url: uploadedFileUrl || '',
+                    selected_action: $actionSelect.val() || '',
+                    selected_page: $pageSelect.val() || '',
+                    last_tool_result: lastToolResult
+                        ? JSON.stringify(lastToolResult)
+                        : null,
+                    last_tool_name: lastToolName || '',
+                    _ajax_nonce: HouetorSelfHare.nonce,
+                },
+                success: function (res) {
+                    $loading.hide();
+                    if (res.success) {
+                        var steps = res.data.steps || [];
+                        for (var i = 0; i < steps.length; i++) {
+                            appendMessage(steps[i], 'step');
+                        }
+                        if (res.data.reply) appendMessage(res.data.reply, 'assistant');
+                        if (res.data.tool_call) {
+                            state.lastToolCall = res.data.tool_call;
+                            state.lastToolResult = null;
+                            var effective = buildEffectiveToolCall();
+                            $toolPreview.html(
+                                '<span style="font-weight:600;color:#2ECC8A;">' +
+                                $('<span>').text(describeToolCall(effective || res.data.tool_call)).html() +
+                                '</span>'
+                            );
+                            $executeBtn.show();
+                            $confirmBtn.hide();
+                            $previewSummary.hide().empty();
+                            $tool.show();
+                            $result.empty();
+                        }
+                    } else {
+                        appendMessage(
+                            res.data || 'Erreur inconnue',
+                            'error'
+                        );
+                    }
+                },
+                error: function () {
+                    $loading.hide();
+                    appendMessage(
+                        'Erreur réseau. Veuillez réessayer.',
+                        'error'
+                    );
+                },
+            });
+        }
+
         function closeModal() {
             $modal.hide();
             previewData = null;
@@ -264,64 +328,10 @@
             var msg = $input.val().trim();
             if (!msg && !uploadedFileUrl) return;
 
-            appendMessage(msg, 'user');
+            state.lastUserMessage = msg;
             $input.val('');
-            var attUrl = uploadedFileUrl;
             clearAttachment();
-            $loading.show();
-            $tool.hide();
-
-            $.ajax({
-                url: HouetorSelfHare.ajax_url,
-                method: 'POST',
-                data: {
-                    action: 'houetor_selfhare_chat',
-                    message: msg,
-                    attachment_url: attUrl || '',
-                    selected_action: $actionSelect.val() || '',
-                    selected_page: $pageSelect.val() || '',
-                    last_tool_result: state.lastToolResult
-                        ? JSON.stringify(state.lastToolResult)
-                        : null,
-                    last_tool_name: state.lastToolCall
-                        ? state.lastToolCall.name
-                        : '',
-                    _ajax_nonce: HouetorSelfHare.nonce,
-                },
-                success: function (res) {
-                    $loading.hide();
-                    if (res.success) {
-                        if (res.data.reply) appendMessage(res.data.reply, 'assistant');
-                        if (res.data.tool_call) {
-                            state.lastToolCall = res.data.tool_call;
-                            state.lastToolResult = null;
-                            var effective = buildEffectiveToolCall();
-                            $toolPreview.html(
-                                '<span style="font-weight:600;color:#2ECC8A;">' +
-                                $('<span>').text(describeToolCall(effective || res.data.tool_call)).html() +
-                                '</span>'
-                            );
-                            $executeBtn.show();
-                            $confirmBtn.hide();
-                            $previewSummary.hide().empty();
-                            $tool.show();
-                            $result.empty();
-                        }
-                    } else {
-                        appendMessage(
-                            res.data || 'Erreur inconnue',
-                            'error'
-                        );
-                    }
-                },
-                error: function () {
-                    $loading.hide();
-                    appendMessage(
-                        'Erreur réseau. Veuillez réessayer.',
-                        'error'
-                    );
-                },
-            });
+            sendChat(msg, state.lastToolResult, state.lastToolCall ? state.lastToolCall.name : '', {});
         });
 
         $executeBtn.on('click', function () {
@@ -396,6 +406,8 @@
                     closeModal();
                     if (res.success) {
                         state.lastToolResult = res.data;
+                        var executedName = state.lastToolCall ? state.lastToolCall.name : '';
+                        var userMsg = state.lastUserMessage || '';
                         var msg = res.data.message || 'Action exécutée.';
                         $result.html(
                             '<div class="notice notice-success inline" style="margin:0;"><p>' +
@@ -405,6 +417,9 @@
                         appendMessage('✓ ' + msg, 'result');
                         $tool.hide();
                         state.lastToolCall = null;
+                        if (userMsg) {
+                            sendChat(userMsg, res.data, executedName, { silent: true });
+                        }
                     } else {
                         $result.html(
                             '<div class="notice notice-error inline" style="margin:0;"><p>' +

@@ -5,6 +5,7 @@ class Houetor_SelfHare_Chat {
 
     const ACTIVATED_AT_OPTION = 'houetor_selfhare_activated_at';
     const AUTO_MODE_OPTION = 'houetor_selfhare_auto_mode';
+    const MAX_AGENT_ITERATIONS = 4;
 
     public static function can_skip_preview() {
         $activated_at = get_option(self::ACTIVATED_AT_OPTION, 0);
@@ -12,6 +13,115 @@ class Houetor_SelfHare_Chat {
         if (!$auto_mode) return false;
         if (time() - intval($activated_at) < DAY_IN_SECONDS) return false;
         return true;
+    }
+
+    /**
+     * Boucle agent : enchaîne automatiquement les lectures (sans confirmation)
+     * jusqu'à une réponse finale, une écriture (retournée pour confirmation
+     * humaine) ou le plafond d'itérations.
+     */
+    public static function agent_loop($message, $site_context, $manifest_schema, $last_tool_result = null, $last_tool_name = '') {
+        $steps = [];
+        $reply = '';
+        $current_last_result = $last_tool_result;
+        $current_last_name = $last_tool_name;
+        $last_executed_call = null;
+
+        for ($i = 0; $i < self::MAX_AGENT_ITERATIONS; $i++) {
+            $response = self::call_relay($message, $site_context, $manifest_schema, $current_last_result, $current_last_name);
+            if (is_wp_error($response)) {
+                return ['success' => false, 'error' => 'Erreur de communication avec le relay : ' . $response->get_error_message()];
+            }
+
+            $body = json_decode(wp_remote_retrieve_body($response), true);
+
+            if (wp_remote_retrieve_response_code($response) !== 200 || isset($body['error'])) {
+                $error_code = isset($body['code']) ? $body['code'] : '';
+                $hint = '';
+                if ($error_code && class_exists('Houetor_SelfHare_Error_Translator')) {
+                    $info = Houetor_SelfHare_Error_Translator::translate($error_code);
+                    $hint = $info['hint'];
+                }
+                $error = $hint ? "Erreur : {$body['error']}. $hint" : ($body['error'] ?? 'Erreur inconnue du relay');
+                return ['success' => false, 'error' => $error];
+            }
+
+            $reply = $body['reply'] ?? '';
+            $tool_call = isset($body['tool_call']) ? $body['tool_call'] : null;
+
+            if (!$tool_call || empty($tool_call['name'])) {
+                return ['success' => true, 'reply' => $reply, 'tool_call' => null, 'steps' => $steps];
+            }
+
+            $name = sanitize_text_field($tool_call['name']);
+
+            if (Houetor_SelfHare_Dispatch::is_read_action($name)) {
+                if (self::is_repeat_call($last_executed_call, $tool_call)) {
+                    $steps[] = 'Lecture ' . $name . ' répétée — arrêt automatique.';
+                    return ['success' => true, 'reply' => $reply ?: 'Arrêt automatique : l\'agent répète la même lecture.', 'tool_call' => null, 'steps' => $steps];
+                }
+                $result = Houetor_SelfHare_Dispatch::execute($tool_call, $manifest_schema);
+                $steps[] = self::step_label($tool_call, $result);
+                $last_executed_call = $tool_call;
+                $current_last_result = $result;
+                $current_last_name = $name;
+                continue;
+            }
+
+            return ['success' => true, 'reply' => $reply, 'tool_call' => $tool_call, 'steps' => $steps];
+        }
+
+        return ['success' => true, 'reply' => $reply ?: 'Limite d\'étapes automatiques atteinte. Envoie un message pour continuer.', 'tool_call' => null, 'steps' => $steps];
+    }
+
+    private static function is_repeat_call($previous, $current) {
+        if (!$previous || empty($previous['name'])) return false;
+        if ($previous['name'] !== $current['name']) return false;
+        $a = isset($previous['params']) && is_array($previous['params']) ? $previous['params'] : [];
+        $b = isset($current['params']) && is_array($current['params']) ? $current['params'] : [];
+        return md5(wp_json_encode($a)) === md5(wp_json_encode($b));
+    }
+
+    private static function step_label($tool_call, $result) {
+        $name = sanitize_text_field($tool_call['name']);
+        $params = isset($tool_call['params']) && is_array($tool_call['params']) ? $tool_call['params'] : [];
+        $labels = [
+            'get_wp_pages' => 'Liste des pages',
+            'get_page_blocks' => 'Lecture des blocs de la page',
+            'get_page_history' => 'Historique de la page',
+        ];
+        $prefix = isset($labels[$name]) ? $labels[$name] : $name;
+        $id = isset($params['page_id']) ? intval($params['page_id']) : (isset($params['post_id']) ? intval($params['post_id']) : 0);
+        $detail = $id ? ' #' . $id : '';
+        $count = '';
+        if ($name === 'get_page_blocks' && !empty($result['count'])) $count = ' (' . intval($result['count']) . ' blocs)';
+        if ($name === 'get_wp_pages' && !empty($result['count'])) $count = ' (' . intval($result['count']) . ' pages)';
+        if (isset($result['success']) && !$result['success']) {
+            return $prefix . $detail . ' — échec : ' . ($result['message'] ?? '');
+        }
+        return $prefix . $detail . $count;
+    }
+
+    private static function call_relay($message, $site_context, $manifest_schema, $last_tool_result, $last_tool_name) {
+        $license = Houetor_SelfHare_License::get_license();
+        if (!$license || !Houetor_SelfHare_License::is_active()) {
+            return new WP_Error('license_inactive', 'Licence inactive.');
+        }
+
+        $context = is_array($site_context) ? $site_context : [];
+        if ($last_tool_name) $context['last_tool_name'] = $last_tool_name;
+
+        return wp_remote_post(HOUETOR_SELFHARE_RELAY_URL, [
+            'headers' => ['Content-Type' => 'application/json'],
+            'body' => json_encode([
+                'license_key' => $license['license_key'],
+                'message' => $message,
+                'site_context' => $context ?: new stdClass(),
+                'manifest_schema' => $manifest_schema,
+                'last_tool_result' => $last_tool_result,
+            ]),
+            'timeout' => 60,
+        ]);
     }
 
     public static function render_page() {
@@ -96,7 +206,7 @@ class Houetor_SelfHare_Chat {
                 </div>
 
                 <div id="houetor-selfhare-loading">
-                    <span class="spinner is-active"></span> Réflexion en cours…
+                    <span class="spinner is-active"></span> <span class="loading-text">L'agent réfléchit<span class="loading-dots"></span></span>
                 </div>
             </div>
         </div>
@@ -155,38 +265,16 @@ function houetor_selfhare_chat_ajax() {
     if ($last_tool_name) $site_context['last_tool_name'] = $last_tool_name;
     $manifest_schema = Houetor_SelfHare_Onboarding::build_manifest();
 
-    $response = wp_remote_post(HOUETOR_SELFHARE_RELAY_URL, [
-        'headers' => ['Content-Type' => 'application/json'],
-        'body' => json_encode([
-            'license_key' => $license['license_key'],
-            'message' => $message,
-            'site_context' => $site_context ?: new stdClass(),
-            'manifest_schema' => $manifest_schema,
-            'last_tool_result' => $last_tool_result,
-        ]),
-        'timeout' => 60,
-    ]);
+    $result = Houetor_SelfHare_Chat::agent_loop($message, $site_context, $manifest_schema, $last_tool_result, $last_tool_name);
 
-    if (is_wp_error($response)) {
-        wp_send_json_error('Erreur de communication avec le relay : ' . $response->get_error_message());
-    }
-
-    $body = json_decode(wp_remote_retrieve_body($response), true);
-
-    if (wp_remote_retrieve_response_code($response) !== 200 || isset($body['error'])) {
-        $error_code = isset($body['code']) ? $body['code'] : '';
-        $hint = '';
-        if ($error_code && class_exists('Houetor_SelfHare_Error_Translator')) {
-            $info = Houetor_SelfHare_Error_Translator::translate($error_code);
-            $hint = $info['hint'];
-        }
-        $reply = $hint ? "Erreur : {$body['error']}. $hint" : ($body['error'] ?? 'Erreur inconnue du relay');
-        wp_send_json_error($reply);
+    if (!$result['success']) {
+        wp_send_json_error($result['error']);
     }
 
     wp_send_json_success([
-        'reply' => $body['reply'] ?? '',
-        'tool_call' => $body['tool_call'] ?? null,
+        'reply' => $result['reply'],
+        'tool_call' => $result['tool_call'],
+        'steps' => $result['steps'],
     ]);
 }
 

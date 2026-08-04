@@ -38,6 +38,10 @@ class Houetor_SelfHare_Dispatch {
         return in_array($prefix, ['create', 'update', 'delete'], true);
     }
 
+    public static function is_read_action($name) {
+        return isset(self::ALLOWED_ACTIONS[$name]) && !self::is_write_action($name);
+    }
+
     private static function preview_fingerprint($name, $params) {
         return md5(wp_json_encode(['name' => $name, 'params' => $params]));
     }

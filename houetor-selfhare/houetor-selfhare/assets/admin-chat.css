@@ -43,6 +43,18 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
+#houetor-selfhare-chat .houetor-message.step {
+  background: transparent;
+  border: none;
+  border-left: 2px solid rgba(46, 204, 138, 0.4);
+  color: var(--sh-muted);
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 4px 12px;
+  margin-bottom: 4px;
+  box-shadow: none;
+}
+
 #houetor-selfhare-chat .houetor-message.user {
   background: linear-gradient(135deg, #2ECC8A, #1FA870);
   text-align: right;
@@ -470,7 +482,24 @@
 #houetor-selfhare-loading .spinner {
   float: none;
   margin-top: 0;
+  margin-right: 8px;
   vertical-align: middle;
+}
+
+#houetor-selfhare-loading .loading-dots::after {
+  content: '';
+  display: inline-block;
+  width: 24px;
+  text-align: left;
+  animation: loadingDots 1.4s steps(4, end) infinite;
+}
+
+@keyframes loadingDots {
+  0%   { content: ''; }
+  25%  { content: '.'; }
+  50%  { content: '..'; }
+  75%  { content: '...'; }
+  100% { content: ''; }
 }
 
 /* ── Execute result ── */
