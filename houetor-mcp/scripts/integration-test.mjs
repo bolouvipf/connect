@@ -303,7 +303,7 @@ server.listen(PORT, async () => {
     stBlocks = (await (await rpc('get_page_blocks', { page_id: '3' })).json()).result?.data
     check(
       'wrap_block: groupe en position 0, enfants plus à la racine',
-      stBlocks.blocks[0]?.blockName === 'core/group' && !stBlocks.blocks.some((b) => b.content?.includes('website address')),
+      stBlocks.blocks[0]?.blockName === 'core/group' && !stBlocks.blocks.some((b) => (b.parent_ref ?? null) === null && b.content?.includes('website address')),
     )
 
     // unwrap réel du groupe

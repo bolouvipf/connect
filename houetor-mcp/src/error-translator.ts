@@ -1,6 +1,7 @@
 // Traduction des erreurs REST houetor-connect en messages actionnables pour l'agent.
 // Codes observés dans le lab (série V2) : 401 unauthorized, 404 anchor_not_found/block_not_found,
 // 409 error_conflict (CAS), 429 rate_limited (10 écritures/60s par page), 400 validation.
+// 2.8.0 : container blocks (innerBlocks), nested block lookup, etc.
 
 export interface TranslatedError {
   status: number
@@ -83,6 +84,37 @@ export function translateError(status: number, data: any, fallback: string): Tra
       message:
         `Dégroupage refusé : le bloc ciblé n'est pas un core/group (${raw}). ` +
         `Ciblez un bloc core/group (get_page_blocks) ou créez le groupe d'abord via wrap_block, puis réessayez.`,
+    }
+  }
+
+  // 2.8.0 — blocs imbriqués
+  if (status === 400 && raw.includes('conteneur') && raw.includes('blocs enfants')) {
+    return {
+      status,
+      code,
+      message:
+        `Le bloc ciblé est un conteneur (il a des blocs enfants) — impossible d'y écrire du contenu directement (${raw}). ` +
+        `Utilisez get_page_blocks pour lister ses enfants (champ parent_ref) et ciblez l'un d'eux par sa propre ref/index.`,
+    }
+  }
+
+  if (status === 404 && raw.includes('introuvable') && raw.includes('imbriqu')) {
+    return {
+      status,
+      code,
+      message:
+        `Bloc imbriqué introuvable (${raw}). Relisez la page (get_page_blocks) — elle expose maintenant tous les blocs à tous les niveaux avec parent_ref, depth, has_children. ` +
+        `Ciblez le bloc par sa ref ou son index global.`,
+    }
+  }
+
+  if (status === 400 && raw.includes('conteneur') && raw.includes('ne peut pas être transformé')) {
+    return {
+      status,
+      code,
+      message:
+        `Le bloc ciblé est un conteneur (blocs enfants) et ne peut pas être transformé directement (${raw}). ` +
+        `Ciblez l'un de ses enfants via get_page_blocks (parent_ref) pour le transformer.`,
     }
   }
 

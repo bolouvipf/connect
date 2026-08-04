@@ -48,13 +48,16 @@ server.listen(PORT, async () => {
     check('S0 relecture initiale : page 2 lisible via MCP', blocks0.length >= 4, `count=${blocks0.length}`)
 
     // ===== S1 — « Ajoute un bloc avantage juste avant le pied de page » =====
+    // create_block est une op structurelle top-level : anchor_index attend un
+    // index TOP-LEVEL, or get_page_blocks (2.8.0) expose des index globaux.
+    const topLevelCount = blocks0.filter((b) => (b.parent_ref ?? null) === null).length
     const s1 = await rpc('create_block', {
       page_id: '2',
       block_name: 'core/heading',
       content: 'Avantage MCP',
       module: 'client',
       position: 'before',
-      anchor_index: String(blocks0.length - 1),
+      anchor_index: String(topLevelCount - 1),
     })
     const s1Body = await s1.json()
     const refA = s1Body.result?.data?.ref
@@ -228,7 +231,7 @@ server.listen(PORT, async () => {
     const s11Body = await s11.json()
     check('S11 wrap plage [0..1] → 200 + groupe', s11.status === 200 && s11Body.result?.data?.blockName === 'core/group', s11Body.error?.message ?? '')
     const after11 = await getPage('3')
-    check('S11 relecture : groupe en position 0, blocs enrobés plus à la racine', after11.blocks[0]?.blockName === 'core/group' && !after11.blocks.some((b) => b.content?.includes('website address')))
+    check('S11 relecture : groupe en position 0, blocs enrobés plus à la racine', after11.blocks[0]?.blockName === 'core/group' && !after11.blocks.some((b) => (b.parent_ref ?? null) === null && b.content?.includes('website address')))
 
     // ===== S12 — « Dégroupe la section, je veux retrouver mes blocs » =====
     const s12 = await rpc('unwrap_block', {

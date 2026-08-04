@@ -26,7 +26,7 @@ export const HWT_TOOLS: HWTool[] = [
   },
   {
     name: 'get_page_blocks',
-    description: "Lire la structure de blocs d'une page WordPress (index, blockName, content, ref, content_md5)",
+    description: "Lire la structure COMPLÈTE de blocs d'une page WordPress (tous niveaux, blocs imbriqués inclus). Retourne : index (global), blockName, content, ref, parent_ref (index du parent), depth, has_children, child_count, content_md5",
     profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
     params: {
       page_id: { type: 'string', required: true, description: 'ID de la page WordPress' },
