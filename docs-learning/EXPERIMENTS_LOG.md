@@ -576,3 +576,54 @@ Lab : working tree patché 2.8.0 (à committer). Fix Day : plugin **2.8.0 actif*
 
 ### Suites
 Commits ciblés lab + push `opencode-learning` (docs + patch + tests fournis + adaptations MCP miroir). Fils ouverts inchangés : portage prod selfhare (8 fichiers Exp 024 + 4 Exp 025) + zip (méthode jumeau dispo) ; merge/rollout `mcp-block-crud-2.7.0` (le portage MCP prod devra suivre le patch 2.8.0 pour exposer/éditer les enfants) ; suppression éventuelle du dossier `houetor-connect` (2.7.0) sur Fix Day ; lint global houetor (62) ; roadmap (replace_block).
+
+## Exp 028 — MODIFICATION RÉELLE D'UN ENFANT IMBRIQUÉ STARTER (page About Fix Day, 2.8.0) (2026-08-04)
+
+**Contexte** : suite d'Exp 027. Le patch 2.8.0 (locate_block_deep) a été validé sur des blocs **créés par l'agent** (wrap + update enfant par ref). Mission : le valider sur des blocs **préexistants du starter** (jamais modifiés en réel avant) — le cas exact des 4 refus par design d'Exp 026 bis. Serveur Next relancé (`next build` + `next start -p 3010`, procédure Exp 018). Le GET SSE authentifié répond (401 sans token = normal).
+
+### Préparation
+- Smoke test MCP prod : page 5 About expose désormais **80 blocs sur TOUS les niveaux** (avant patch : 6 racines seules) avec `parent_ref/depth/has_children/child_count` — md5 `d35956a7…` identique = exposition seule, contenu intact.
+- Cible choisie via raw REST (`context=edit`, nonce wp-admin) : **idx 2 = `atomic-wind/text` « About Us »** (depth 2, parent_ref 1, ref null → ciblage par index, fallback).
+
+### Validation — Exp 028 (update enfant imbriqué starter) : **7/7 PASS** (`mcp-e2e-nested-starter.mjs`)
+| Test | Résultat |
+|---|---|
+| dry_run update idx 2 (MODIF) | PASS — accepté (avant patch : refus conteneur), md5 inchangé, contenu inchangé |
+| **update RÉEL idx 2** | PASS — « About Us — MODIF TEST IMBRIQUE » relu, md5 `d35956a7…`→`4661c256…` |
+| preuve REST raw après | PASS — MODIF présent, ancien absent, structure parent/grand-parent intactes |
+| restauration ORIGINAL | PASS — « About Us » restauré |
+| preuve REST raw finale | PASS — len 22050, « About Us » présent, MODIF absent |
+
+### Validation — Exp 028bis (batch sur enfant imbriqué) : **batch PASS, transform = refus par design** (`mcp-e2e-nested-batch-transform.mjs`)
+| Test | Résultat |
+|---|---|
+| batch `update_blocks` idx 2 | PASS — « MODIF BATCH » relu, structure intacte |
+| restauration batch | PASS — contenu original |
+| transform `atomic-wind/text`→`core/paragraph` | REFUS par design — « Bloc atomic-wind/text non transformable (blocs de texte uniquement : core/paragraph, core/heading, core/quote, core/list, core/code, core/preformatted, core/pullquote) » — garde-fou existant, **pas un défaut du patch** |
+
+### Validation — Exp 028ter (transform sur enfant imbriqué core, page jetable 147) : **7/8 PASS** (`mcp-e2e-nested-transform-core.mjs`)
+| Test | Résultat |
+|---|---|
+| create ×2 + wrap [A..B] → core/group | PASS — groupe child_count 2 (⚠️ `refG=null` renvoyé par wrap : ciblage du groupe par blockName, pas par ref) |
+| **transform ENFANT A paragraph→heading par ref** | PASS — type relu `core/heading` (depth 1, parent_ref 1) — **le test clé** |
+| transform retour heading→paragraph | PASS — type restauré, contenu conservé |
+| unwrap groupe | FAIL script (refG=null, « ref ou block_index requis ») — hypothèse du script, pas un bug plugin |
+| cleanup DELETE page | PASS — page 147 supprimée, aucun résidu |
+
+### Analyse du delta md5 après restauration (22052→22050)
+- Diff character-level : **1 seul point** : `--> \n <span` (rev 109) → `--><span` (final) — le `\n` canonique après le commentaire d'ouverture est retiré par `serialize_blocks` lors de la réécriture.
+- Comparaison sémantique : **structures strictement identiques (79 blocs), refs identiques (agenttest-c4d8da4ddf28), texte visible identique** (hors 1 espace issu du `\n`).
+- Conclusion : normalisation canonique WP (même famille que `size-full/>`→`size-full />` d'Exp 019), **aucun résidu de contenu**.
+- **Restauration au md5 EXACT** : réécriture du raw d'origine (rev 109, len 22052) via REST core `?context=edit` → md5 final `d35956a796fb5b14c79cfda5c1065b82` == md5 initial ✓ (80 blocs, idx 2 « About Us » intact).
+
+### Découvertes structurantes
+1. **Le patch 2.8.0 lève les 4 refus d'Exp 026 bis pour l'édition** : update ET batch sur enfant imbriqué starter (idx, sans ref) fonctionnent en réel ; transform sur enfant imbriqué **core** fonctionne aussi (par ref, depth 1).
+2. **Limite du transform conservée** : `atomic-wind/text` (starter) n'est PAS transformable — types core texte uniquement (garde-fou design, à connaître pour l'agent : pas un bug).
+3. **`ref=null` sur le groupe créé par wrap** (page jetable) : le wrap renvoie `ref=null` quand... (à préciser — en Exp 027 le groupe avait une ref). Ciblage de repli : par blockName/index.
+4. **Restauration exacte possible** : réécriture du raw d'origine via REST core (rev d'avant test) → md5 identique. La restauration via update_block_content seule laisse le delta de normalisation `serialize_blocks` (1 newline) — bénin mais visible au md5.
+
+### État
+Fix Day : page About **restaurée au md5 EXACT d'origine** (`d35956a7…`), aucun résidu (page 147 supprimée), plugin 2.8.0 actif, serveur Next actif (3010). Lab : commits Exp 027 poussés (7400476/1115893/736e5d8/f67d366), git propre sauf probes + mirror-suite.sh EOL.
+
+### Suites
+Commit docs Exp 028 + push. Fils ouverts inchangés : portage prod selfhare (8 fichiers Exp 024 + 4 Exp 025) + zip (méthode jumeau) ; merge/rollout `mcp-block-crud-2.7.0` → main houetor (le portage MCP prod a été validé avec le comportement 2.8.0 — get_page_blocks expose les enfants via le plugin) ; suppression dossier `houetor-connect` (2.7.0) Fix Day ; lint global houetor (62) ; roadmap (replace_block, compte agent WP, rate limit rewrites, PHPUnit).

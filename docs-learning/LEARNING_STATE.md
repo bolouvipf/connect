@@ -346,3 +346,21 @@ Relance du serveur WP lab si tombé : `wsl -u root -e bash -c "systemctl restart
 **Comportements réels à connaître (adaptations des attentes)** : blocs **sans ref custom → `ref=null`** (cibler par index) ; `parent_ref` = **index global du parent** (entier, pas la ref) ; raw REST exposé seulement en `?context=edit`.
 
 **Pour reprendre** : commits ciblés lab + push `opencode-learning` (docs Exp 027 + patch + tests fournis + adaptations MCP miroir). Fils ouverts : portage prod selfhare (8 fichiers Exp 024 + 4 Exp 025) + zip (**méthode jumeau disponible**) ; merge/rollout `mcp-block-crud-2.7.0` (**le portage MCP prod devra suivre le patch 2.8.0** pour exposer/éditer les enfants imbriqués) ; suppression éventuelle du dossier `houetor-connect` (2.7.0) sur Fix Day ; lint global houetor (62 erreurs) ; roadmap (compte agent WP, rate limit rewrites, PHPUnit, **replace_block**) ; 3 `probe-*.mjs` untracked (écartés). Secrets en stock (jamais commités) : `.env.learning` (lab) + `.env.local` (houetor). Docs : EXPERIMENTS_LOG Exp 027.
+
+## MODIFICATION D'UN ENFANT IMBRIQUÉ STARTER EN RÉEL — Session 2026-08-04 (Exp 028 : patch 2.8.0 validé sur blocs préexistants du starter, page About restaurée au md5 EXACT)
+
+**Mission** : après le patch 2.8.0 validé sur des blocs créés par l'agent (Exp 027), valider l'édition des blocs **préexistants du starter** — le cas des 4 refus par design d'Exp 026 bis. Serveur Next relancé (`next build` + `next start -p 3010`). Cible : idx 2 = `atomic-wind/text` « About Us » (depth 2, parent_ref 1, ref null → index).
+
+| Élément | État |
+|---|---|
+| **Smoke test** | ✅ GET SSE 200 auth + get_page_blocks : **80 blocs sur tous les niveaux** (avant : 6 racines) avec parent_ref/depth/has_children/child_count, md5 `d35956a7…` intact |
+| **update enfant imbriqué starter (idx 2)** | ✅ **7/7 PASS** : dry_run accepté (avant : refus) → update RÉEL « MODIF TEST » → preuve REST raw (modif présent, parents intacts) → restauration → « About Us » d'origine |
+| **batch update_blocks idx 2** | ✅ PASS (modif + restauration) |
+| **transform enfant imbriqué** | ✅ `atomic-wind/text` → refus par design (types core texte uniquement, garde-fou) ; sur enfant **core/paragraph** (page jetable, wrap) : **paragraph→heading→paragraph PASS** (ref conservée, depth 1) |
+| **Delta md5** | ✅ après restauration : raw 22052→22050 = **1 seul `\n` retiré** par `serialize_blocks` (`-->\n<span`→`--><span`) ; structures 79 blocs + refs + texte visibles identiques → normalisation canonique (famille Exp 019), aucun résidu |
+| **Restauration exacte** | ✅ réécriture du raw d'origine (rev 109) via REST core → **md5 final == md5 initial `d35956a7…`**, 80 blocs, idx 2 « About Us » intact |
+| **Cleanup** | ✅ page jetable 147 supprimée, aucun résidu |
+
+**Découvertes** : (1) le patch 2.8.0 lève les refus d'édition sur enfants imbriqués **starter** (update + batch par index) ; (2) limite conservée : transform = types core texte uniquement (`atomic-wind/text` refusé proprement) ; (3) `ref=null` sur groupe créé par wrap (page jetable) → ciblage par blockName/index ; (4) la restauration via update laisse le delta de normalisation, la réécriture du raw d'origine restaure le md5 exact.
+
+**Pour reprendre** : commit docs Exp 028 + push. Fils ouverts : portage prod selfhare (8 fichiers Exp 024 + 4 Exp 025) + zip (**méthode jumeau**) ; merge/rollout `mcp-block-crud-2.7.0` → main houetor (portage MCP prod validé avec comportement 2.8.0 via le plugin) ; suppression dossier `houetor-connect` (2.7.0) Fix Day ; lint global houetor (62) ; roadmap (replace_block, compte agent WP, rate limit rewrites, PHPUnit) ; 3 `probe-*.mjs` untracked (écartés). Serveur Next actif (3010), relance : `next build` + `next start -p 3010`. Secrets en stock (jamais commités) : `.env.learning` (lab) + `.env.local` (houetor). Docs : EXPERIMENTS_LOG Exp 028.
