@@ -395,3 +395,32 @@ node node_modules/next/dist/bin/next start -p 3010
 - **Pas de concept de « site connecté »/déconnexion côté selfhare** : la « connexion » = license en option (chiffrée, Exp 017). Rien n'est supprimé à la désactivation (juste le cron). Les transients preview/rate limit sont **volontaires** (jeton de sécurité à usage unique 10 min, compteur 60 s) — aucune donnée utilisateur dedans.
 - **Différence notable vs connect (Exp 022)** : à la désinstallation, selfhare **DROP ses 3 tables** (mémoire, routines, audit) et supprime les options — le contenu des pages reste mais l'historique agent (mémoire, routines, journal, license) est **détruit**. connect, lui, ne supprime aucune table à l'uninstall (seulement des options, audit log survit).
 - Les JSON (`context_json`, `params`, `before_json`/`after_json`) sont des champs LONGTEXT de tables WP → survivent aux redémarrages, à la déconnexion (inexistante) et aux expirations de transients ; ils ne disparaissent qu'à la **désinstallation volontaire** du plugin.
+
+## Exp 024 — Restyle UI `houetor-selfhare` thème HOUETOR (ref. plans) + sync prod/lab + zip (2026-08-04)
+
+**Mission utilisateur** : arranger l'interface admin du plugin selfhare en s'inspirant du design de `https://www.houetor.com/selfhare/plans` (champs + icônes + **élargir l'invite de commande**), préparer le zip et commiter — dans le dossier prod ET dans le lab (miroir) pour rester cohérents.
+
+### Design de référence (extrait de `app/selfhare/plans/page.tsx`)
+Fond `#0D1F1A`, cartes `#1A3028` / gradient `#162B24`, accent vert `#2ECC8A` (orange `#FB923C` pour l'agence), texte `#F0EDE6` / secondaire `#7A9E8E`, titres **Syne** + corps **DM Sans**, cards `rounded-3xl` (24 px), boutons pills `rounded-full`, ombres douces, chevrons/checkmarks SVG inline.
+
+### Restyle appliqué (4 fichiers, prod puis lab)
+1. **`assets/admin-chat.css`** (réécrit, 459 → 500+ lignes) : variables CSS `--sh-*` ; `#houetor-selfhare-chat` max-width **800→1080 px**, fond `#0D1F1A` radius 24 px ; **invite de commande élargie** (`#houetor-selfhare-input` : min-height 56 px, padding 14×22, font-size 16, radius 18, fond `#162B24`, placeholder `#7A9E8E`, focus glow vert) ; bouton Envoyer pill 56 px ; bulles : user = dégradé vert (comme CTA plans), assistant/system = carte sombre bordure verte ; toolbar = 2 champs selects sombres avec chevron vert + labels verts uppercase (icônes) ; upload = carré 56 px border vert ; boutons pills `#2ECC8A` texte `#0D1F1A` + `✓` via `::before` ; modal/diff/loading/preview-summary/scrollbars passés en sombre ; `.notice` success/error adaptés.
+2. **`includes/class-agent-chat.php`** : emojis remplacés par **SVG inline** (éclair Action, document Page, trombone upload, ✕ retrait = `line` croisées) ; placeholder enrichi (« Décris ce que tu veux : ajouter un bloc, modifier une page… »).
+3. **`assets/admin-chat.js`** : `'✅ '` → `'✓ '` (`.text()` n'affiche pas l'emoji ✅ dans les bulles) ; couleur accent `#4ADE80` → `#2ECC8A` (cohérence).
+4. **`houetor-selfhare.php`** : `wp_enqueue_style('houetor-selfhare-fonts', Google Fonts DM Sans + Syne)` en dépendance du CSS admin ; header version aligné `1.0.2` (prod était resté `1.0.1`).
+
+### ⚠️ DÉCOUVERTE — divergence prod vs lab (8 fichiers, sens : lab = complet, prod = retard)
+Comparaison HEAD↔HEAD de tout le dossier `houetor-selfhare/` : `admin-chat.js`, `houetor-selfhare.php`, `class-agent-dispatch.php`, `class-agent-routines.php`, `class-error-translator.php`, `class-license.php`, `readme.txt`, `uninstall.php` diffèrent. **Le prod n'a PAS les correctifs 1.0.2 testés au lab (Exp 017, 36/36)** : preview serveur obligatoire (preview_token), CAS global, rate limit créations, routines actives, produits réels, journal paginé, license chiffrée, uninstall complet, localize `version` + footer. Le lab est la référence correcte.
+
+### Stratégie de sync (préserver les correctifs lab)
+- `admin-chat.css` + `class-agent-chat.php` : **bases HEAD identiques** prod/lab (prouvé par hash) → copie directe prod → lab.
+- `admin-chat.js` + `houetor-selfhare.php` : bases différentes → **2 edits ciblés au lab** (✓ + `#2ECC8A` ; fonts) — `preview_token` (lignes 349/383-384), journal paginé, footer version, localize `version` **intacts** (vérifié par relecture + stats diff lab = JS 4 lignes / PHP 3 lignes).
+- Vérifs : `php -l` 0 erreur (prod + lab), `node --check` OK (prod + lab).
+
+### Commits, push, zip
+- Prod `4bf9681` (branche `mcp-block-crud-2.7.0`, poussée) : 4 fichiers, 304+/153-.
+- Lab `dcadf1f` (branche `opencode-learning`, poussée) : 4 fichiers, 303+/152-.
+- Zip `outputs/houetor-selfhare.zip` : `git archive --format=zip --prefix=houetor-selfhare/ -o outputs/houetor-selfhare.zip HEAD:houetor-selfhare` → 24 fichiers, 33 184 octets, racine `houetor-selfhare/` vérifiée. (⚠️ 1er essai `HEAD houetor-selfhare` = double imbrication `houetor-selfhare/houetor-selfhare/` → corrigé.)
+
+### ⚠️ Point d'attention pour l'utilisateur
+Le zip distribué = **état prod (restyle seul, SANS correctifs sécurité du lab)**. Pour distribuer la version testée 36/36, porter les 8 fichiers du lab → prod puis regénérer le zip (décision utilisateur).

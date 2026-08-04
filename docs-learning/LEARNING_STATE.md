@@ -271,3 +271,21 @@ Relance du serveur WP lab si tombé : `wsl -u root -e bash -c "systemctl restart
 **Preuve finale du contrat ONBOARDING §1** : la chaîne prod complète exécute les demandes utilisateur **sans aucune erreur** en conditions réelles. 8 écritures réelles ≤ budget rate limit 10/60s (aucun 429 rencontré, retry intégré).
 
 **Pour reprendre** : validation réelle **complète** (Exp 018 + 019 + 020). Reste (décisions utilisateur) : merge/rollout `mcp-block-crud-2.7.0` → main houetor ; lint global houetor (62 erreurs) ; roadmap (compte agent WP moindre privilège, rate limit rewrites séparé, PHPUnit) ; 3 `probe-*.mjs` untracked (écartés) ; serveur Next à relancer si besoin (procédure Exp 018). Docs : EXPERIMENTS_LOG Exp 020.
+
+## RESTYLE UI SELFHARE — Session 2026-08-04 (Exp 024 : thème HOUETOR ref plans, prod + lab synchronisés)
+
+**Mission utilisateur** : arranger l'interface admin du plugin `houetor-selfhare` (dossier prod `houetor-selfhare/`) en s'inspirant du design de `houetor.com/selfhare/plans` — revoir les champs et icônes + élargir la forme/taille de l'« invite de commande », puis « préparer le zip et commit », et faire pareil dans le lab.
+
+| Élément | État |
+|---|---|
+| **Design de référence** | ✅ extrait de `app/selfhare/plans/page.tsx` : fond `#0D1F1A`, cartes `#1A3028`/`#162B24`, vert `#2ECC8A`, orange agence `#FB923C`, texte `#F0EDE6`/`#7A9E8E`, titres Syne + corps DM Sans, cards radius 24px, boutons pills |
+| **Restyle prod (4 fichiers)** | ✅ `admin-chat.css` réécrit (variables CSS, chat max-width 800→1080, **invite de commande élargie** : min-height 56px, padding 14×22, font-size 16, radius 18, glow focus vert ; bulles user = dégradé vert ; boutons pills + ✓ ::before ; modal/diff/loading/scrollbars sombres) ; `class-agent-chat.php` (emojis 📎/✕ → **SVG inline**, icônes SVG labels Action/Page, placeholder enrichi) ; `admin-chat.js` (✅ → ✓ car `.text()` n'affiche pas les emojis ; accent `#4ADE80`→`#2ECC8A`) ; `houetor-selfhare.php` (Google Fonts Syne+DM Sans, header version aligné `1.0.2`) |
+| **⚠️ DIVERGENCE prod/lab découverte** | ✅ 8 fichiers diffèrent entre HEAD prod et HEAD lab : le lab (testé 36/36, Exp 017) a les correctifs sécurité **absents du prod** — preview_token serveur obligatoire, CAS global, rate limit créations, routines actives, produits réels, journal paginé, license chiffrée, uninstall complet, `'version'` localize + footer. Le prod n'a que le restyle UI (état 1.0.2 partiel) |
+| **Sync lab (4 fichiers)** | ✅ CSS + class-agent-chat.php copiés (bases HEAD identiques), JS et houetor-selfhare.php **édités ciblés** pour PRÉSERVER les correctifs lab (preview_token lignes 349/383-384, journal paginé, footer, localize version intacts) — mêmes stats diff que prod (JS 4 lignes, PHP 3 lignes) |
+| **Vérifs** | ✅ `php -l` 0 erreur ×2 (prod + lab, `class-agent-chat.php` + `houetor-selfhare.php`) ; `node --check` OK ×2 (JS prod + lab) |
+| **Commits + push** | ✅ prod `4bf9681` (`mcp-block-crud-2.7.0`, poussé) ; lab `dcadf1f` (`opencode-learning`, poussé) — 4 fichiers chacun, probes-*.mjs toujours écartés |
+| **Zip** | ✅ `outputs/houetor-selfhare.zip` régénéré par `git archive --prefix=houetor-selfhare/ HEAD:houetor-selfhare` (chemins `/`, jamais Compress-Archive) — 24 fichiers, 33 184 octets, structure racine `houetor-selfhare/` vérifiée (⚠️ 1er essai `HEAD houetor-selfhare` = double imbrication → corrigé avec `HEAD:houetor-selfhare`) |
+
+**⚠️ IMPORTANT — zip = état prod, SANS les correctifs du lab** : le zip régénéré (comme l'actuel avant lui) distribue la version prod qui n'a PAS preview_token obligatoire/CAS/rate limit créations. Pour distribuer la version testée 36/36, il faut porter les 8 fichiers du lab vers le prod (ou générer le zip depuis le lab). **Décision utilisateur demandée.**
+
+**Pour reprendre** : décision utilisateur : (a) porter les correctifs 1.0.2 du lab → prod (8 fichiers : admin-chat.js, houetor-selfhare.php, class-agent-dispatch.php, class-agent-routines.php, class-error-translator.php, class-license.php, readme.txt, uninstall.php) puis regénérer le zip ; (b) ou distribuer le zip prod actuel tel quel. Fils ouverts inchangés (merge `mcp-block-crud-2.7.0`, lint global 62 erreurs, roadmap, probes untracked). Docs : EXPERIMENTS_LOG Exp 024.
