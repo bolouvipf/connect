@@ -170,3 +170,33 @@ Voir historique : 18 tests (auth 403, parsing, create positionnel, PATCH, révis
 - Erreurs traduites : move source introuvable (dry_run) → 404 + `data.code=move_failed` ; move `before` sans ancre → 400 ; unwrap non-groupe (dry_run) → 400 traduit avec conseil « Ciblez un bloc core/group… ou créez le groupe via wrap_block ».
 - Scénarios **S9-S12** : « Remonte ce paragraphe en haut » (move), « Duplique ce titre » (duplicate), « Regroupe ces deux blocs » (wrap), « Dégroupe ce groupe » (unwrap) — chacun : relecture → écriture (CAS) → relecture de confirmation → PASS. SSE liste les tools 2.4.0-2.7.0.
 - Portage `portage-app-mcp/` : typecheck **0 erreur** (tsc Windows, types prod réels).
+
+## T-SERIE 007 — Plugin 2.8.0 : édition d'un enfant imbriqué starter en réel (Fix Day) — 2026-08-04
+
+**Méthode :** tests E2E via MCP prod (serveur Next local 3010, portage `mcp-block-crud-2.7.0`, chaîne Agent → app/mcp → Supabase → plugin 2.8.0), page 5 About de Fix Day (starter), preuves REST core (`context=edit`, nonce wp-admin) + analyse diff character-level. Scripts : `Temp/opencode/mcp-e2e-nested-starter.mjs`, `mcp-e2e-nested-batch-transform.mjs`, `mcp-e2e-nested-transform-core.mjs`.
+
+### Suite imbriquée starter (patch 2.8.0) — page About : **7/7 PASS**
+
+**E1-E5 — update enfant imbriqué starter (idx 2 = `atomic-wind/text` « About Us », depth 2, parent_ref 1, ref null)** :
+- dry_run par index → 200, md5 inchangé, contenu inchangé (AVANT le patch : refus conteneur) ;
+- update RÉEL → 200, « About Us — MODIF TEST IMBRIQUE » relu, md5 `d35956a7…`→`4661c256…` ;
+- preuve REST raw → MODIF présent, ancien absent, parents (box max-w-4xl, section bg-dark) intacts ;
+- restauration ORIGINAL → « About Us » relu ;
+- preuve REST raw finale → len 22050, MODIF absent.
+
+**E6-E7 — batch `update_blocks` sur enfant imbriqué (idx 2)** : modif → relu « MODIF BATCH », restauration → original relu. **Transform sur `atomic-wind/text` → REFUS par design** (« Bloc atomic-wind/text non transformable — blocs de texte uniquement : core/paragraph, core/heading, core/quote, core/list, core/code, core/preformatted, core/pullquote ») — garde-fou conservé, pas un défaut du patch.
+
+### Suite transform imbriqué core — page jetable 147 : **7/8 PASS** (1 FAIL = hypothèse script sur `refG`)
+
+**E8-E10 — transform enfant imbriqué core** : create ×2 (paragraph `lab-…`) + wrap [A..B] → `core/group` (child_count 2, ⚠️ `refG=null` renvoyé par wrap → ciblage du groupe par blockName) ; **transform ENFANT A paragraph→heading par ref → 200, relu `core/heading` (depth 1, parent_ref 1)** ; transform retour → `core/paragraph`, contenu conservé. **E11 — cleanup** : page 147 supprimée, aucun résidu.
+
+### Delta md5 après restauration (analyse diff)
+
+Après update+restauration via le plugin : raw 22052→22050 = **1 seul `\n` retiré** par `serialize_blocks` (`-->\n<span`→`--><span`, position 598). Structures strictement identiques (79 blocs), refs identiques (`agenttest-c4d8da4ddf28`), texte visible identique → **normalisation canonique WP** (famille `size-full/>`→`size-full />` Exp 019), aucun résidu de contenu. **Restauration au md5 EXACT** : réécriture du raw d'origine (rev 109) via REST core → **md5 final == md5 initial `d35956a796fb5b14c79cfda5c1065b82`**, 80 blocs exposés, idx 2 « About Us » intact.
+
+### Découvertes
+
+1. Le patch 2.8.0 lève les refus d'édition sur enfants imbriqués **starter** : update ET batch par index fonctionnent en réel ; transform sur enfant imbriqué **core** fonctionne (ref conservée, depth 1).
+2. Limite conservée : transform = types **core texte uniquement** — `atomic-wind/text` (starter) refusé proprement (garde-fou design).
+3. `ref=null` sur le groupe créé par wrap (page jetable) → ciblage de repli par blockName/index.
+4. Restauration exacte possible : réécriture du raw d'origine via REST core (rev d'avant test) → md5 identique ; la restauration via `update_block_content` seule laisse le delta de normalisation `serialize_blocks` (bénin, visible au md5).
