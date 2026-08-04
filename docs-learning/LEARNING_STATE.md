@@ -289,3 +289,20 @@ Relance du serveur WP lab si tombé : `wsl -u root -e bash -c "systemctl restart
 **⚠️ IMPORTANT — zip = état prod, SANS les correctifs du lab** : le zip régénéré (comme l'actuel avant lui) distribue la version prod qui n'a PAS preview_token obligatoire/CAS/rate limit créations. Pour distribuer la version testée 36/36, il faut porter les 8 fichiers du lab vers le prod (ou générer le zip depuis le lab). **Décision utilisateur demandée.**
 
 **Pour reprendre** : décision utilisateur : (a) porter les correctifs 1.0.2 du lab → prod (8 fichiers : admin-chat.js, houetor-selfhare.php, class-agent-dispatch.php, class-agent-routines.php, class-error-translator.php, class-license.php, readme.txt, uninstall.php) puis regénérer le zip ; (b) ou distribuer le zip prod actuel tel quel. Fils ouverts inchangés (merge `mcp-block-crud-2.7.0`, lint global 62 erreurs, roadmap, probes untracked). Docs : EXPERIMENTS_LOG Exp 024.
+
+## BOUCLE AGENT SELFHARE + DÉPLOIEMENT FIX DAY — Session 2026-08-04 (Exp 025 : lectures auto, enchaînement, dernière confirmation conservée)
+
+**Mission utilisateur** : améliorer l'UX agent selfhare — (1) les lectures ne doivent plus demander confirmation, (2) l'agent doit enchaîner les actions, (3) MAIS **une dernière confirmation doit toujours rester avant toute modification/création** (décision finale : garder le panneau existant tel quel).
+
+| Élément | État |
+|---|---|
+| **Décisions utilisateur** | ✅ Continue seul après écriture exécutée ; **4 étapes max** par demande ; lectures auto visibles en discret + indicateur de chargement animé ; **lab d'abord** ; **confirmation finale conservée** (panneau aperçu avant/après + preview_token serveur) |
+| **Implémentation lab (4 fichiers, commit `9f66dec` poussé)** | ✅ `class-agent-dispatch.php` (`is_read_action()`) ; `class-agent-chat.php` (`MAX_AGENT_ITERATIONS=4`, `agent_loop()` = boucle relay : exécute les lectures via Dispatch::execute, **s'arrête sur la 1re écriture sans jamais l'exécuter**, stop si lecture répétée md5, `step_label()`, `call_relay()` ; ajax branché sur agent_loop + renvoie `steps`) ; `admin-chat.js` (`sendChat()` réutilisable + silent, affichage `.step`, `state.lastUserMessage`, **reprise auto après écriture confirmée**) ; `admin-chat.css` (`.step` discret bord vert, `@keyframes loadingDots`) |
+| **Vérifs** | ✅ `php -l` 0 erreur (14 fichiers) ; `node --check` OK |
+| **⚠️ Zip Exp 024 invalide (double imbrication)** | ✅ Découvert à l'upload : le zip Exp 024 contenait `houetor-selfhare/houetor-selfhare/…` → WP « Aucune extension trouvée ». Bonne commande : `git archive --format=zip --prefix=houetor-selfhare/ -o outputs/houetor-selfhare.zip HEAD:houetor-selfhare/houetor-selfhare` (arbre du dossier plugin). Zip rebâti : 24 fichiers, 37 870 octets, racine `houetor-selfhare/houetor-selfhare.php` ✓ |
+| **Déploiement Fix Day** | ✅ Upload wp-admin curl (login + nonce **du formulaire upload** + multipart) → 1er essai KO (zip imbriqué), 2e essai « dossier existe déjà » + **réplication TasteWP entre serveurs du pool** (vérifs 404/absent trompeuses pendant ~minutes) → après propagation : **installé + ACTIF** (plugins.php, statut Désactiver) |
+| **Licence selfhare** | ✅ Connectée par l'utilisateur → vérifiée `admin.php?page=houetor-selfhare` : « **Licence active — Plan : starter — Clé : SLH-starter-732251c8…** » + sous-menus **Assistant** et **Routines** présents (is_active()=true) |
+
+**État Fix Day (2026-08-04)** : `houetor-selfhare` 1.0.2 + boucle Exp 025 **installé/actif, licence starter active** — prêt à tester la boucle en conditions réelles (lectures auto, enchaînement, confirmation avant écriture, compteur 4, loader).
+
+**Pour reprendre** : tester la boucle en réel sur Fix Day (message → lectures auto en `.step` sans confirmation → écriture proposée avec panneau de confirmation → exécuter → reprise auto de vérification) ; puis portage prod (8 fichiers correctifs Exp 024 + 4 fichiers boucle Exp 025) + zip + docs Exp 026. Fils ouverts inchangés (merge `mcp-block-crud-2.7.0`, lint global 62 erreurs, roadmap, probes untracked). Docs : EXPERIMENTS_LOG Exp 025.

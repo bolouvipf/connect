@@ -424,3 +424,35 @@ Comparaison HEAD↔HEAD de tout le dossier `houetor-selfhare/` : `admin-chat.js`
 
 ### ⚠️ Point d'attention pour l'utilisateur
 Le zip distribué = **état prod (restyle seul, SANS correctifs sécurité du lab)**. Pour distribuer la version testée 36/36, porter les 8 fichiers du lab → prod puis regénérer le zip (décision utilisateur).
+
+## Exp 025 — Boucle agent multi-étapes : lectures auto + enchaînement + dernière confirmation conservée (2026-08-04)
+
+**Contexte** : après le restyle (Exp 024) et l'audit fiabilité (selfhare = niveau connect 2.7.0), l'utilisateur signale 2 plaintes UX : (1) l'agent demande confirmation pour les **lectures** (get_page_blocks…), (2) pas d'**enchaînement** : 1 message → 1 réponse → 1 exécution, `last_tool_result` jamais renvoyé automatiquement. Mission : lectures auto sans confirmation + boucle serveur multi-tours, avec indicateur de chargement visible — **lab d'abord**, puis déploiement réel sur Fix Day (licence connectée par l'utilisateur).
+
+### Décisions utilisateur (4 questions)
+1. Après une écriture exécutée → l'agent **continue seul** (vérifie le résultat, enchaîne) ;
+2. **4 étapes max** par demande (`MAX_AGENT_ITERATIONS = 4`) ;
+3. Lectures auto **visibles en discret** (ligne étape) + **indicateur de chargement animé** (« tourne progresse ») ;
+4. **Lab d'abord**, portage prod après validation.
+
+### Implémentation (lab, 4 fichiers — commit `9f66dec`)
+1. **`includes/class-agent-dispatch.php`** : `is_read_action($name)` — lecture = `ALLOWED_ACTIONS[$name]` non-write (get_wp_pages / get_page_blocks / get_page_history).
+2. **`includes/class-agent-chat.php`** :
+   - `MAX_AGENT_ITERATIONS = 4` ; `agent_loop($message, $site_context, $manifest_schema, $last_tool_result, $last_tool_name)` : boucle `for` qui appelle le relay, **exécute les lectures via `Dispatch::execute()`** (jamais de confirmation), **s'arrête sur la 1re écriture** → retourne `{success, reply, tool_call, steps}` ; plafond atteint → « Limite d'étapes automatiques atteinte » ; lecture répétée (même nom + même md5 params) → arrêt propre.
+   - `step_label()` : « Lecture des blocs de la page #5 (12 blocs) », « — échec : … » si lecture KO ; `call_relay()` : extrait la duplication de l'ajax, timeout 60, `last_tool_name` ajouté au contexte.
+   - `houetor_selfhare_chat_ajax` : branché sur `agent_loop`, renvoie `steps` au JS.
+   - HTML : loading « L'agent réfléchit… » + `.loading-dots`.
+3. **`assets/admin-chat.js`** : `sendChat()` réutilisable (params : message, lastToolResult, lastToolName, opts.silent) ; submit → `sendChat` ; steps affichés en `.step` (ligne discrète bord vert) ; `state.lastUserMessage` ; après confirmation d'écriture OK → **reprise auto** `sendChat(userMsg, res.data, executedName, {silent:true})` (pas de re-bulle utilisateur) ; nouvelle écriture éventuelle → panneau de confirmation à nouveau.
+4. **`assets/admin-chat.css`** : `.houetor-message.step` (transparent, bordure gauche verte, 12 px, muted) ; `@keyframes loadingDots` (3 points animés).
+
+**Sécurité conservée** : une écriture n'est JAMAIS exécutée dans la boucle — elle est retournée à l'UI qui affiche le panneau « Confirmer l'action » (aperçu avant/après + preview_token serveur obligatoire, modal confirm). **L'utilisateur a confirmé : garder cette confirmation existante** (aucun renforcement).
+
+### Vérifs
+`php -l` 0 erreur (scripts/php-lint.sh), `node --check admin-chat.js` OK. Test runtime bloqué au lab (licence inexistante dans l'env localhost:8888) → décision utilisateur : tester en réel sur Fix Day.
+
+### Déploiement réel — Fix Day (site TasteWP, plugin connecté dashboard HOUETOR)
+- Zip rebâti depuis le commit lab : **⚠️ le zip Exp 024 était encore DOUBLE-IMBRIGUÉ** (`houetor-selfhare/houetor-selfhare/…`) malgré la note Exp 024 — la bonne commande est `git archive --format=zip --prefix=houetor-selfhare/ -o outputs/houetor-selfhare.zip HEAD:houetor-selfhare/houetor-selfhare` (arbre **du dossier plugin**). Conséquence upload 1 : WordPress « L'archive n'a pas pu être installée. Aucune extension » (nonce upload = celui du formulaire `plugin-install.php?tab=upload`, scope `<form>` — le 1er `_wpnonce` de la page est invalide). Upload 2 : « Le dossier de destination existe déjà » puis vérif trompeuse (404 fichiers / absent plugins.php) — **réplication TasteWP entre serveurs du pool** (quelques minutes) : après propagation, plugin listé puis **ACTIF** (vérifié plugins.php, statut « Désactiver », fichier principal 200 / 0 octet).
+- **Licence** : connectée par l'utilisateur (dashboard) → vérifiée page `admin.php?page=houetor-selfhare` : « **Licence active — Plan : starter — Clé : SLH-starter-732251c8…** » + sous-menus **Assistant** et **Routines** présents (ils n'apparaissent que si `is_active()`).
+
+### État et suites
+Plugin `houetor-selfhare` 1.0.2 (+boucle) installé/actif sur Fix Day avec licence starter → **tester la boucle en réel** (lecture auto sans confirmation + écriture avec confirmation + reprise auto après exécution ; compteur 4 max ; étapes discrètes + loader). Fils ouverts inchangés : portage prod (8 fichiers Exp 024 + 4 fichiers Exp 025), merge `mcp-block-crud-2.7.0`, lint global houetor (62), probes untracked.
