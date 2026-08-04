@@ -519,3 +519,60 @@ Tester la boucle selfhare en réel dans l'UI Fix Day (lectures auto + confirmati
 
 ### État
 Aucune modification de code ni de contenu. Fix Day page About intacte (md5 `d35956a7…`). Serveur Next toujours actif (3010). Docs : ce fichier + LEARNING_STATE (section Exp 026 complétée).
+
+## Exp 027 — PATCH BLOCS IMBRIQUÉS 2.8.0 : wrap/update ciblent les enfants (env lab + déploiement réel Fix Day) (2026-08-04)
+
+**Contexte** : correctif d'édition des blocs imbriqués fourni par l'utilisateur (fichier `class-block-editor.php` + 2 scripts de test, dossier `Temp/opencode/nested-patch/`). Le plugin 2.7.0 refuse toute écriture sur un bloc imbriqué (garde-fous Exp 026 bis) et `locate_block` ne descend pas dans les innerBlocks. Mission : porter le patch dans le lab (`opencode-learning`), le valider (batteries + tests fournis + MCP miroir), puis le déployer et le valider **en conditions réelles sur Fix Day**.
+
+### Portage et vérifications statiques
+- Working tree lab **patché** : `connect/houetor-connect/includes/class-block-editor.php` == fichier fourni (identique après normalisation EOL). Bump `HWC_VERSION 2.8.0` (`houetor-connect.php`) + changelog `readme.txt`.
+- Grep conforme : `locate_block()` reste dans move_block (L844/866), duplicate_block (L963), wrap_block (L1028/1037), unwrap_block (L1111) ; `locate_block_deep()` **uniquement** dans update_block_content (L382), batch_update_blocks (L483), transform_block (L651) ; delete_block/find_block_index_by_ref gardent leur boucle top-level inline.
+- **Exposition enfants** : `flatten_blocks_recursive` (L43-64) ajoute désormais `parent_ref` (index du parent), `depth`, `has_children`, `child_count` à chaque bloc exposé par `get_page_blocks`.
+- Nouveau message refus conteneur (update/batch/transform) : « est un conteneur (il a des blocs enfants) — impossible d'y écrire du contenu directement. Utilise get_page_blocks pour lister ses enfants (parent_ref = …) et cible l'un d'eux par sa propre ref/index ».
+- `php -l` : **0 erreur** (14 fichiers). RISQUE 2 : l'ancien message « est un conteneur » subsiste dans `houetor-selfhare/class-agent-dispatch.php:854` (plugin séparé, hors périmètre, à tracer) et dans les citations historiques des docs Exp 025/026 (preuves, conservées).
+
+### Tests fournis adaptés (env lab localhost:8888)
+- `test-nested-block-depth1.php` (group > paragraph) : **TOUS LES TESTS PASSENT** — création depth 1, update du groupe, mise à jour de l'enfant imbriqué par ref, refus conteneur avec nouveau message, structure préservée.
+- `test-nested-block-depth2-refs.php` (columns > column > paragraph, refs `annonces-abc123` + batch par index) : **TOUS LES TESTS PASSENT** — profondeur 2, refs enfants, batch, structure préservée.
+- Wrapper permanent : `scripts/nested-tests.sh`.
+
+### Batteries complètes (plugin + MCP miroir)
+- Plugin : **V3 32/32, STRUCTURAL 42/42, TRANSFORM 21/21, RETENTION 9/9, TIER POLICY 11/11** — md5 final page 2 = `c4abdffe…` identique (RISQUE 1 : la référence page 2 contenait déjà 2 core/quote imbriqués → index globaux ≠ top-level, batteries sur refs/index `_top`, aucune assertion sur index absolus).
+- MCP miroir `mirror-suite.sh` : **unitaires 42/42, intégration 52/52, scénarios 41/41**.
+
+### Déploiement réel Fix Day — méthode « jumeau » (dossier `houetor-connect-280`)
+- Upload direct du zip 2.8.0 **refusé** par WP (« le dossier de destination existe déjà » — l'écran plugin upload ne remplace jamais un dossier existant).
+- Solution sans risque token : zip préfixé **`houetor-connect-280/`** (24 fichiers, `git archive HEAD:houetor-connect` + overlay des 3 fichiers modifiés via `zip`), upload wp-admin (`update.php?action=upload-plugin`, nonce du formulaire `plugin-install.php?tab=upload`, champ submit `install-plugin-submit` obligatoire), puis **désactivation du 2.7.0 + activation du jumeau** (liens `plugins.php?action=deactivate|activate&plugin=…&_wpnonce=…`).
+- **Token/Supabase préservés** : options partagées (même `hwc_token`), `hwc_deactivate` ne fait que `wp_clear_scheduled_hook('hwc_audit_cleanup')`, `hwc_activate` ne régénère le token que s'il est absent → re-crée le cron. Dashboard connecté intact.
+- Vérif fonctionnelle : `https://fixday.s6-tastewp.com/wp-content/plugins/houetor-connect-280/readme.txt` → **Stable tag 2.8.0** ; MCP répond avec le comportement 2.8.0 (champs child_count/has_children/depth/parent_ref exposés, update enfant par ref accepté). L'ancien 2.7.0 reste désactivé dans `houetor-connect/` (réservé ; suppression manuelle possible).
+
+### Validation E2E réelle — **10/10 PASS** (`Temp/opencode/mcp-e2e-nested-prod.mjs`, MCP local 3010)
+| Test | Résultat |
+|---|---|
+| login wp-admin + nonce | PASS |
+| créer page de test (REST core) | PASS (page 135, publiée) |
+| get_page_blocks | PASS (md5 initial) |
+| create_block ×2 (paragraph module lab) | PASS (refA `lab-682823d5ce39`, refB `lab-54a1bded88a3`) |
+| **wrap_block [A..B] → core/group** | PASS — groupe `child_count=2`, `has_children=true` |
+| **enfants exposés depth=1 + parent_ref** | PASS — A et B à `depth=1`, `parent_ref=1` (AVANT le patch : invisibles) |
+| preuve REST raw avant (context=edit) | PASS — marqueurs `HWC lab-… start/end` présents dans le raw, texte original |
+| **update_block_content sur ENFANT A par ref** | PASS — **LE test du patch** : contenu relu « ENFANT 1 — TEXTE MODIFIE PAR LE PATCH IMBRIQUE » |
+| preuve REST raw après | PASS — texte modifié présent, ancien absent, frère B intact, structure `wp:group` intacte |
+| nettoyage DELETE page | PASS (404 après) |
+
+**Adaptations des attentes du test au comportement réel** : (1) les blocs **sans ref custom** sont exposés avec `ref=null` (recherche du groupe par `name/blockName` et non par ref) ; (2) `parent_ref` = **index global du parent** (entier), pas sa ref ; (3) le raw `content` du REST core n'est exposé qu'en `?context=edit`.
+
+### Nettoyage Fix Day
+Pages de test toutes supprimées (111, 118, 124, 129, 135) + **page diag 110 « diag-tmp »** (draft laissé par le diagnostic auth, `deleted:true`). Reste « Privacy Policy » (draft natif WP, non touché). Aucun bloc starter modifié (page About et Accueil intactes, md5 d'origine).
+
+### Découvertes structurantes
+1. **L'édition d'un bloc imbriqué fonctionne en réel** : wrap crée le groupe (children exposés), `update_block_content` cible un enfant par sa ref (locate_block_deep), structure et frères intacts, preuve REST brute avant/après.
+2. **L'exposition des enfants est la clé de l'UX agent** : `get_page_blocks` renvoie maintenant `parent_ref/depth/has_children/child_count` → l'agent peut lister les enfants et cibler précisément (message de refus actionnable : « cible l'un d'eux par sa propre ref/index »).
+3. **`ref=null` pour les blocs sans data-ref custom** : les blocs starter/existants sans ref générée apparaissent avec `ref=null` → l'agent doit utiliser l'index (fallback existant) ; les blocs créés par le plugin ont leur ref `lab-…`/`hwc-…`.
+4. **Méthode « jumeau » pour déployer une MAJ d'un plugin sur TasteWP** (dossier existant) : zip avec préfixe du dossier jumeau → upload → bascule désactiver/activer → token/options préservés. À réutiliser pour le portage prod selfhare et le rollout `mcp-block-crud-2.7.0`.
+
+### État
+Lab : working tree patché 2.8.0 (à committer). Fix Day : plugin **2.8.0 actif** (dossier `houetor-connect-280`), 2.7.0 désactivé (dossier `houetor-connect`, réservé), token/Supabase intacts, aucun résidu de test. Serveur Next toujours actif (3010). Docs : ce fichier + LEARNING_STATE (section Exp 027).
+
+### Suites
+Commits ciblés lab + push `opencode-learning` (docs + patch + tests fournis + adaptations MCP miroir). Fils ouverts inchangés : portage prod selfhare (8 fichiers Exp 024 + 4 Exp 025) + zip (méthode jumeau dispo) ; merge/rollout `mcp-block-crud-2.7.0` (le portage MCP prod devra suivre le patch 2.8.0 pour exposer/éditer les enfants) ; suppression éventuelle du dossier `houetor-connect` (2.7.0) sur Fix Day ; lint global houetor (62) ; roadmap (replace_block).
