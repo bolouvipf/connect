@@ -297,7 +297,7 @@
                             state.lastToolResult = null;
                             var effective = buildEffectiveToolCall();
                             $toolPreview.html(
-                                '<span style="font-weight:600;color:#4ADE80;">' +
+                                '<span style="font-weight:600;color:#2ECC8A;">' +
                                 $('<span>').text(describeToolCall(effective || res.data.tool_call)).html() +
                                 '</span>'
                             );
@@ -402,7 +402,7 @@
                                 $('<span>').text(msg).html() +
                                 '</p></div>'
                         );
-                        appendMessage('✅ ' + msg, 'result');
+                        appendMessage('✓ ' + msg, 'result');
                         $tool.hide();
                         state.lastToolCall = null;
                     } else {

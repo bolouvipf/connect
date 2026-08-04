@@ -41,7 +41,7 @@ class Houetor_SelfHare_Chat {
             <div id="houetor-selfhare-chat">
                 <div id="houetor-selfhare-toolbar">
                     <div>
-                        <label>Action</label>
+                        <label><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Action</label>
                         <select id="houetor-selfhare-action">
                             <option value="">-- Action automatique --</option>
                             <option value="inject_page">Injecter du contenu</option>
@@ -50,7 +50,7 @@ class Houetor_SelfHare_Chat {
                         </select>
                     </div>
                     <div>
-                        <label>Page</label>
+                        <label><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Page</label>
                         <select id="houetor-selfhare-page">
                             <option value="">-- Sélectionner --</option>
                             <?php foreach (Houetor_SelfHare_Page_Cache::get() as $p) : ?>
@@ -68,16 +68,18 @@ class Houetor_SelfHare_Chat {
 
                 <form id="houetor-selfhare-form">
                     <div class="form-row">
-                        <input type="text" id="houetor-selfhare-input" placeholder="Ex : Ajoute un header avec le logo" required />
+                        <input type="text" id="houetor-selfhare-input" placeholder="Décris ce que tu veux : ajouter un bloc, modifier une page…" required />
                         <label id="houetor-selfhare-upload-label" title="Joindre une image">
-                            📎
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                             <input type="file" id="houetor-selfhare-file-input" accept="image/jpeg,image/png,image/webp" />
                         </label>
                         <button type="submit" class="button button-primary">Envoyer</button>
                     </div>
                     <div id="houetor-selfhare-file-preview">
                         <span id="houetor-selfhare-file-name"></span>
-                        <button type="button" id="houetor-selfhare-file-remove">✕</button>
+                        <button type="button" id="houetor-selfhare-file-remove" title="Retirer l'image">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
                     </div>
                 </form>
 

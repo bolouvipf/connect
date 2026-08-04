@@ -157,7 +157,8 @@ function houetor_selfhare_routines_page() {
 add_action('admin_enqueue_scripts', 'houetor_selfhare_admin_assets');
 function houetor_selfhare_admin_assets($hook) {
     if (strpos($hook, 'houetor-selfhare') === false) return;
-    wp_enqueue_style('houetor-selfhare-admin', HOUETOR_SELFHARE_URL . 'assets/admin-chat.css', [], filemtime(plugin_dir_path(__FILE__) . 'assets/admin-chat.css'));
+    wp_enqueue_style('houetor-selfhare-fonts', 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap', [], null);
+    wp_enqueue_style('houetor-selfhare-admin', HOUETOR_SELFHARE_URL . 'assets/admin-chat.css', ['houetor-selfhare-fonts'], filemtime(plugin_dir_path(__FILE__) . 'assets/admin-chat.css'));
     wp_enqueue_script('houetor-selfhare-admin', HOUETOR_SELFHARE_URL . 'assets/admin-chat.js', ['jquery'], filemtime(plugin_dir_path(__FILE__) . 'assets/admin-chat.js'), true);
     wp_localize_script('houetor-selfhare-admin', 'HouetorSelfHare', [
         'ajax_url' => admin_url('admin-ajax.php'),
