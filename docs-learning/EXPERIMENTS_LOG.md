@@ -627,3 +627,26 @@ Fix Day : page About **restaurée au md5 EXACT d'origine** (`d35956a7…`), aucu
 
 ### Suites
 Commit docs Exp 028 + push. Fils ouverts inchangés : portage prod selfhare (8 fichiers Exp 024 + 4 Exp 025) + zip (méthode jumeau) ; merge/rollout `mcp-block-crud-2.7.0` → main houetor (le portage MCP prod a été validé avec le comportement 2.8.0 — get_page_blocks expose les enfants via le plugin) ; suppression dossier `houetor-connect` (2.7.0) Fix Day ; lint global houetor (62) ; roadmap (replace_block, compte agent WP, rate limit rewrites, PHPUnit).
+
+## Exp 029 — MODIFICATION RÉELLE PAGE CONTACT (demande utilisateur directe, bloc starter imbriqué, 2.8.0) (2026-08-04)
+
+**Contexte** : l'utilisateur choisit lui-même un bloc sur la page **Contact** (id 8) de Fix Day et valide la modification — preuve finale du contrat « l'utilisateur contrôle ». Serveur Next actif (3010).
+
+| Élément | État |
+|---|---|
+| **Localisation** | ✅ page Contact = id 8 (get_wp_pages) ; **57 blocs exposés** (md5 `f309e426…`) ; texte cible = **idx 4** `atomic-wind/text` (depth 2, parent_ref 1, ref null) « Have questions or ready to book your appointment? Reach out to our friendly team — we're here to help you smile. » |
+| **Proposition** | ✅ texte de remplacement simple proposé par l'agent, dry_run d'abord : 200, md5 inchangé, contenu inchangé |
+| **Validation utilisateur** | ✅ « vas-y » |
+| **Écriture réelle** | ✅ `update_block_content` idx 4, CAS frais → 200, md5 `f309e426…`→`106e1db0…`, relecture : « Questions or ready to book your appointment? Our friendly team is here to help you smile every day. » |
+| **Preuve brute** | ✅ REST core `context=edit` (len 15788) : MODIF présent, ORIG absent, structure `</p><!-- /wp:atomic-wind/text --></div>` intacte |
+| **Contrôle visuel** | ✅ lien communiqué à l'utilisateur : https://fixday.s6-tastewp.com/contact/ → « gardons ça, ça fonctionne » |
+
+**Découverte** : timeouts réseau intermittents vers Fix Day depuis Windows (ETIMEDOUT Cloudflare 188.114.x.x) — transitoires, site de nouveau HTTP 200 après ~20 s, l'écriture MCP n'a pas été affectée (retry).
+
+**Suite demandée utilisateur** : vérifier que `houetor-selfhare` est capable de la même chose (modifier un bloc existant du site, y compris imbriqué) ; **feu vert** pour le mettre à jour si non.
+
+### État
+Fix Day : page Contact **modifiée en réel et CONSERVÉE** (décision utilisateur, md5 `106e1db0…`), page About intacte (`d35956a7…`), plugin 2.8.0 actif, serveur Next actif (3010). Lab : docs Exp 028 poussées (97d7790 + 8014fa0).
+
+### Suites
+Audit selfhare (capacité = édition bloc existant + imbriqué, comparer class-block-editor/agent-dispatch) → mise à jour si nécessaire (feu vert). Fils ouverts inchangés : portage prod selfhare, merge `mcp-block-crud-2.7.0`, dossier 2.7.0 Fix Day, lint global (62), roadmap.

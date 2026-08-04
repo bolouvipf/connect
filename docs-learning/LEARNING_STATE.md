@@ -364,3 +364,16 @@ Relance du serveur WP lab si tombé : `wsl -u root -e bash -c "systemctl restart
 **Découvertes** : (1) le patch 2.8.0 lève les refus d'édition sur enfants imbriqués **starter** (update + batch par index) ; (2) limite conservée : transform = types core texte uniquement (`atomic-wind/text` refusé proprement) ; (3) `ref=null` sur groupe créé par wrap (page jetable) → ciblage par blockName/index ; (4) la restauration via update laisse le delta de normalisation, la réécriture du raw d'origine restaure le md5 exact.
 
 **Pour reprendre** : commit docs Exp 028 + push. Fils ouverts : portage prod selfhare (8 fichiers Exp 024 + 4 Exp 025) + zip (**méthode jumeau**) ; merge/rollout `mcp-block-crud-2.7.0` → main houetor (portage MCP prod validé avec comportement 2.8.0 via le plugin) ; suppression dossier `houetor-connect` (2.7.0) Fix Day ; lint global houetor (62) ; roadmap (replace_block, compte agent WP, rate limit rewrites, PHPUnit) ; 3 `probe-*.mjs` untracked (écartés). Serveur Next actif (3010), relance : `next build` + `next start -p 3010`. Secrets en stock (jamais commités) : `.env.learning` (lab) + `.env.local` (houetor). Docs : EXPERIMENTS_LOG Exp 028.
+
+## MODIFICATION RÉELLE PAGE CONTACT — Session 2026-08-04 (Exp 029 : bloc starter imbriqué choisi par l'utilisateur, « gardons ça », feu vert audit selfhare)
+
+**Mission** : l'utilisateur choisit un bloc sur la page **Contact** (id 8) de Fix Day et demande la modification d'un texte — puis valide et garde le résultat. Enchaînement : doc Exp 029 → **audit selfhare** (même capacité d'édition) → mise à jour si nécessaire (**feu vert donné**).
+
+| Élément | État |
+|---|---|
+| **Cible** | ✅ idx 4 `atomic-wind/text` (depth 2, ref null) « Have questions or ready to book your appointment? Reach out to our friendly team — we're here to help you smile. » (page Contact, 57 blocs exposés, md5 `f309e426…`) |
+| **Process** | ✅ dry_run (200, rien écrit) → validation utilisateur « vas-y » → écriture réelle CAS frais → md5 `f309e426…`→`106e1db0…` → relecture + preuve REST brute (MODIF présent / ORIG absent / structure intacte) |
+| **Décision utilisateur** | ✅ « gardons ça, ça fonctionne » — **la modification est CONSERVÉE en réel** |
+| **Suite demandée** | ✅ vérifier si `houetor-selfhare` sait faire la même chose (modification bloc existant, y compris imbriqué) ; **feu vert de le mettre à jour** |
+
+**Pour reprendre** : audit selfhare → comparer sa capacité d'édition de blocs (existant + imbriqué) vs connect 2.8.0 (locate_block_deep, exposition parent_ref/depth/has_children/child_count, refus conteneur actionnable) → porter les écarts si nécessaire (feu vert). Fils ouverts inchangés : portage prod selfhare (8 fichiers Exp 024 + 4 Exp 025) + zip ; merge/rollout `mcp-block-crud-2.7.0` ; dossier 2.7.0 Fix Day ; lint global (62) ; roadmap. État Fix Day : Contact md5 `106e1db0…` (modifié, conservé), About `d35956a7…` intact, plugin 2.8.0 actif, serveur Next actif (3010). Docs : EXPERIMENTS_LOG Exp 029.
