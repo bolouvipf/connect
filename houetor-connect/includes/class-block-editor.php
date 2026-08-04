@@ -19,19 +19,7 @@ class HWC_Block_Editor {
         $blocks = parse_blocks($content);
         $result = [];
         $index = 0;
-        foreach ($blocks as $block) {
-            $block_name = $block['blockName'] ?? '';
-            if (empty($block_name)) continue;
-
-            $text = self::extract_block_text($block);
-            $result[] = [
-                'index'     => $index,
-                'blockName' => $block_name,
-                'content'   => $text,
-                'ref'       => self::extract_hwc_ref($block),
-            ];
-            $index++;
-        }
+        self::flatten_blocks_recursive($blocks, $result, $index, null, 0);
 
         return [
             'success'     => true,
@@ -39,6 +27,50 @@ class HWC_Block_Editor {
             'count'       => count($result),
             'content_md5' => md5($content),
         ];
+    }
+
+    /**
+     * Aplatit récursivement l'arbre de blocs (parcours en profondeur) pour
+     * l'agent : chaque bloc nommé, à N'IMPORTE QUELLE profondeur, reçoit un
+     * index global et est exposé avec son parent (parent_ref) et sa
+     * profondeur. Avant cette récursion, un bloc niché dans un core/group ou
+     * un core/columns > core/column n'avait AUCUNE identité adressable — il
+     * n'apparaissait simplement jamais dans get_page_blocks, d'où
+     * l'impossibilité de le cibler ensuite. $index et $result sont passés
+     * par référence pour partager la numérotation entre tous les niveaux
+     * (même ordre que locate_block_deep, qui doit rester en accord).
+     */
+    private static function flatten_blocks_recursive($blocks, &$result, &$index, $parent_ref, $depth) {
+        foreach ($blocks as $block) {
+            $block_name = $block['blockName'] ?? '';
+            if (empty($block_name)) continue;
+
+            $ref = self::extract_hwc_ref($block);
+            $has_children = !empty($block['innerBlocks']);
+
+            $result[] = [
+                'index'        => $index,
+                'blockName'    => $block_name,
+                'content'      => self::extract_block_text($block),
+                'ref'          => $ref,
+                'parent_ref'   => $parent_ref,
+                'depth'        => $depth,
+                'has_children' => $has_children,
+                'child_count'  => $has_children ? count($block['innerBlocks']) : 0,
+            ];
+            $current_index = $index;
+            $index++;
+
+            if ($has_children) {
+                self::flatten_blocks_recursive(
+                    $block['innerBlocks'],
+                    $result,
+                    $index,
+                    $ref !== null ? $ref : $current_index,
+                    $depth + 1
+                );
+            }
+        }
     }
 
     /**
@@ -271,6 +303,47 @@ class HWC_Block_Editor {
     }
 
     /**
+     * Localise un bloc N'IMPORTE OÙ dans l'arbre (blocs imbriqués inclus),
+     * par ref HWC ou par index logique global (même numérotation que
+     * flatten_blocks_recursive / get_page_blocks). Retourne une RÉFÉRENCE
+     * PHP directe vers le nœud trouvé : le modifier modifie $blocks en
+     * place, y compris à l'intérieur d'un core/group ou core/columns.
+     *
+     * Réservé aux opérations d'ÉDITION DE CONTENU EN PLACE
+     * (update_block_content, batch_update_blocks, transform_block) : elles
+     * ne changent jamais le nombre de blocs ni leur position, donc muter le
+     * nœud par référence est sûr. Les opérations STRUCTURELLES (move/
+     * duplicate/wrap/delete_block, qui font array_splice) restent sur
+     * locate_block() (top-level uniquement) — les étendre à l'imbriqué est
+     * un chantier séparé et plus risqué (array_splice dans un sous-tableau
+     * imbriqué), volontairement pas traité dans ce patch.
+     */
+    private static function &locate_block_deep(&$blocks, $ref, $block_index, &$counter = 0) {
+        $null = null;
+        foreach ($blocks as &$block) {
+            if (empty($block['blockName'])) continue;
+
+            if ($ref !== null) {
+                if (self::extract_hwc_ref($block) === $ref) {
+                    return $block;
+                }
+            } elseif ($block_index !== null && $counter === intval($block_index)) {
+                return $block;
+            }
+            $counter++;
+
+            if (!empty($block['innerBlocks'])) {
+                $found = &self::locate_block_deep($block['innerBlocks'], $ref, $block_index, $counter);
+                if ($found !== null) {
+                    return $found;
+                }
+            }
+        }
+        unset($block);
+        return $null;
+    }
+
+    /**
      * Localise l'index logique d'un bloc par ref. Retourne l'index ou null.
      */
     public static function find_block_index_by_ref($page_id, $ref) {
@@ -306,36 +379,38 @@ class HWC_Block_Editor {
         }
 
         $blocks = parse_blocks($content);
-        $located = self::locate_block($blocks, $ref, $block_index);
+        $node = &self::locate_block_deep($blocks, $ref, $block_index);
 
-        if ($located === null) {
+        if ($node === null) {
             if ($ref !== null) {
-                return ['success' => false, 'message' => "Aucun bloc avec la ref \"$ref\" trouvé sur la page $page_id."];
+                return ['success' => false, 'message' => "Aucun bloc avec la ref \"$ref\" trouvé sur la page $page_id (recherche incluant les blocs imbriqués)."];
             }
-            $total = 0;
-            foreach ($blocks as $b) { if (!empty($b['blockName'])) $total++; }
-            return ['success' => false, 'message' => "Bloc #$block_index introuvable (0-" . ($total - 1) . " disponible). Utilise get_page_blocks pour voir les indices valides."];
+            $flat = [];
+            $tmp_idx = 0;
+            self::flatten_blocks_recursive($blocks, $flat, $tmp_idx, null, 0);
+            $total = count($flat);
+            return ['success' => false, 'message' => "Bloc #$block_index introuvable (0-" . ($total - 1) . " disponible, blocs imbriqués inclus). Utilise get_page_blocks pour voir les indices valides."];
         }
 
-        $target_idx = $located['idx'];
-        $target_ref = $located['ref'];
-        $block_name = $blocks[$target_idx]['blockName'];
+        $target_ref = self::extract_hwc_ref($node);
+        $block_name = $node['blockName'];
 
-        if (!empty($blocks[$target_idx]['innerBlocks'])) {
-            return ['success' => false, 'message' => "Le bloc #$block_index ($block_name) contient des blocs imbriqués et ne peut pas être modifié directement."];
+        if (!empty($node['innerBlocks'])) {
+            return ['success' => false, 'message' => "Le bloc ciblé ($block_name) est un conteneur (il a des blocs enfants) — impossible d'y écrire du contenu directement. Utilise get_page_blocks pour lister ses enfants (parent_ref = " . ($target_ref !== null ? "\"$target_ref\"" : "cet index") . ") et cible l'un d'eux par sa propre ref/index."];
         }
 
-        $new_html = self::build_replacement_html($blocks[$target_idx], $new_content);
-        $blocks[$target_idx]['innerHTML'] = $new_html;
-        foreach ($blocks[$target_idx]['innerContent'] as $ic => $chunk) {
+        $new_html = self::build_replacement_html($node, $new_content);
+        $node['innerHTML'] = $new_html;
+        foreach ($node['innerContent'] as $ic => $chunk) {
             if (is_string($chunk)) {
-                $blocks[$target_idx]['innerContent'][$ic] = $new_html;
+                $node['innerContent'][$ic] = $new_html;
             }
         }
 
-        if ($block_name === 'core/heading' && isset($blocks[$target_idx]['attrs']['content'])) {
-            $blocks[$target_idx]['attrs']['content'] = wp_strip_all_tags($new_content);
+        if ($block_name === 'core/heading' && isset($node['attrs']['content'])) {
+            $node['attrs']['content'] = wp_strip_all_tags($new_content);
         }
+        unset($node);
 
         $new_post_content = serialize_blocks($blocks);
 
@@ -405,34 +480,35 @@ class HWC_Block_Editor {
                 return ['success' => false, 'message' => 'Chaque update doit fournir ref ou block_index.'];
             }
 
-            $located = self::locate_block($blocks, $update_ref, $update_index);
-            if ($located === null) {
+            $node = &self::locate_block_deep($blocks, $update_ref, $update_index);
+            if ($node === null) {
                 $cible = $update_ref !== null ? "ref \"$update_ref\"" : "bloc #$update_index";
-                return ['success' => false, 'message' => "Cible $cible introuvable sur la page $page_id — batch abandonné, aucune écriture effectuée."];
+                return ['success' => false, 'message' => "Cible $cible introuvable sur la page $page_id (recherche incluant les blocs imbriqués) — batch abandonné, aucune écriture effectuée."];
             }
 
-            $target_idx = $located['idx'];
-            $block_name = $blocks[$target_idx]['blockName'];
+            $block_name = $node['blockName'];
+            $node_ref   = self::extract_hwc_ref($node);
 
-            if (!empty($blocks[$target_idx]['innerBlocks'])) {
-                return ['success' => false, 'message' => "Le bloc $block_name ciblé contient des blocs imbriqués — batch abandonné, aucune écriture effectuée."];
+            if (!empty($node['innerBlocks'])) {
+                return ['success' => false, 'message' => "Le bloc $block_name ciblé est un conteneur (blocs enfants) — batch abandonné, aucune écriture effectuée. Cible directement un enfant (voir get_page_blocks, parent_ref = " . ($node_ref !== null ? "\"$node_ref\"" : "cet index") . ")."];
             }
 
             // Application en mémoire : les updates successifs voient les précédents.
-            $new_html = self::build_replacement_html($blocks[$target_idx], $new_content);
-            $blocks[$target_idx]['innerHTML'] = $new_html;
-            foreach ($blocks[$target_idx]['innerContent'] as $ic => $chunk) {
+            $new_html = self::build_replacement_html($node, $new_content);
+            $node['innerHTML'] = $new_html;
+            foreach ($node['innerContent'] as $ic => $chunk) {
                 if (is_string($chunk)) {
-                    $blocks[$target_idx]['innerContent'][$ic] = $new_html;
+                    $node['innerContent'][$ic] = $new_html;
                 }
             }
 
-            if ($block_name === 'core/heading' && isset($blocks[$target_idx]['attrs']['content'])) {
-                $blocks[$target_idx]['attrs']['content'] = wp_strip_all_tags($new_content);
+            if ($block_name === 'core/heading' && isset($node['attrs']['content'])) {
+                $node['attrs']['content'] = wp_strip_all_tags($new_content);
             }
+            unset($node);
 
             $results[] = [
-                'ref'        => $located['ref'],
+                'ref'        => $node_ref,
                 'block_index'=> $update_index,
                 'blockName'  => $block_name,
                 'status'     => 'ok',
@@ -572,43 +648,44 @@ class HWC_Block_Editor {
         }
 
         $blocks = parse_blocks($content);
-        $located = self::locate_block($blocks, $ref, $block_index);
+        $node = &self::locate_block_deep($blocks, $ref, $block_index);
 
-        if ($located === null) {
+        if ($node === null) {
             if ($ref !== null) {
-                return ['success' => false, 'message' => "Ref \"$ref\" introuvable sur la page $page_id (aucun bloc avec cette ref)."];
+                return ['success' => false, 'message' => "Ref \"$ref\" introuvable sur la page $page_id (recherche incluant les blocs imbriqués)."];
             }
-            $total = 0;
-            foreach ($blocks as $b) { if (!empty($b['blockName'])) $total++; }
-            return ['success' => false, 'message' => "Bloc #$block_index introuvable (0-" . ($total - 1) . " disponible). Utilise get_page_blocks pour voir les indices valides."];
+            $flat = [];
+            $tmp_idx = 0;
+            self::flatten_blocks_recursive($blocks, $flat, $tmp_idx, null, 0);
+            $total = count($flat);
+            return ['success' => false, 'message' => "Bloc #$block_index introuvable (0-" . ($total - 1) . " disponible, blocs imbriqués inclus). Utilise get_page_blocks pour voir les indices valides."];
         }
 
-        $target_idx = $located['idx'];
-        $target_ref = $located['ref'];
-        $source = $blocks[$target_idx];
-        $source_name = $source['blockName'];
+        $target_ref = self::extract_hwc_ref($node);
+        $source_name = $node['blockName'];
 
-        if (!empty($source['innerBlocks'])) {
-            return ['success' => false, 'message' => "Le bloc $source_name ciblé contient des blocs imbriqués et ne peut pas être transformé directement."];
+        if (!empty($node['innerBlocks'])) {
+            return ['success' => false, 'message' => "Le bloc $source_name ciblé est un conteneur (blocs enfants) et ne peut pas être transformé directement. Cible l'un de ses enfants (voir get_page_blocks, parent_ref = " . ($target_ref !== null ? "\"$target_ref\"" : "cet index") . ")."];
         }
 
         if (!in_array($source_name, self::TEXT_BLOCKS, true)) {
             return ['success' => false, 'message' => "Bloc $source_name non transformable (blocs de texte uniquement : " . implode(', ', self::TEXT_BLOCKS) . ').'];
         }
 
-        $text = self::extract_block_text($source);
+        $text = self::extract_block_text($node);
         if ($text === '') {
             return ['success' => false, 'message' => "Le bloc source ($source_name) est vide — rien à transformer."];
         }
 
         $attrs = [];
-        if ($target_block_name === 'core/heading' && $source_name === 'core/heading' && isset($source['attrs']['level'])) {
-            $attrs['level'] = $source['attrs']['level'];
+        if ($target_block_name === 'core/heading' && $source_name === 'core/heading' && isset($node['attrs']['level'])) {
+            $attrs['level'] = $node['attrs']['level'];
         }
 
         $new_block = self::build_block($target_block_name, $text, $attrs);
         $new_block = self::wrap_ref($new_block, $target_ref);
-        $blocks[$target_idx] = $new_block;
+        $node = $new_block;
+        unset($node);
 
         $new_post_content = serialize_blocks($blocks);
         $cible = $ref !== null ? "ref \"$ref\"" : "bloc #$block_index";

@@ -4,7 +4,7 @@ Donate link: https://houetor.com
 Tags: houetor, hare, annonces, produits, formations, api
 Requires at least: 5.8
 Tested up to: 6.8
-Stable tag: 2.7.0
+Stable tag: 2.8.0
 Requires PHP: 7.4
 License: GPL-2.0+
 License URI: http://www.gnu.org/licenses/gpl-2.0.txt
@@ -53,6 +53,18 @@ Oui, vous pouvez configurer autant d\'injections que nécessaire dans la section
 Vérifiez que votre code HWT est valide et que la page sélectionnée existe. Le cache est rafraîchi toutes les 5 minutes.
 
 == Changelog ==
+
+= 2.8.0 =
+* Édition des blocs imbriqués : get_page_blocks aplatit l'arbre entier
+  (nouveaux champs parent_ref, depth, has_children, child_count ; index
+  global en profondeur) — les enfants de core/group et core/columns sont
+  maintenant adressables par ref/index
+* update_block_content / update_blocks (batch) / transform_block ciblent
+  les blocs à n'importe quelle profondeur (locate_block_deep) ; refus
+  uniquement si la cible directe est elle-même un conteneur (message avec
+  parent_ref pour cibler l'enfant)
+* Les ops structurelles (move/duplicate/wrap/delete) restent au niveau
+  racine (inchangées)
 
 = 2.7.0 =
 * Opérations structurelles par bloc (toutes avec CAS expected_hash, dry_run,
