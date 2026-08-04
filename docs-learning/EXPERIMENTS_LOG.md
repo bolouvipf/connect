@@ -460,3 +460,35 @@ Plugin `houetor-selfhare` 1.0.2 (+boucle) installé/actif sur Fix Day avec licen
 ### ⚠️ Point de vigilance — jamais modifié un bloc EXISTANT du site en réel (ni connect, ni selfhare)
 **Aucun test réel n'a encore modifié un bloc qui préexistait sur le site** (contenu starter créé par l'utilisateur, ex. blocs `atomic-wind/box` des pages Fix Day). Les `update_block_content` / `update_blocks` validés en réel (Exp 018 cycle CRUD 9/9, Exp 020 scénarios 9/9) portaient toujours sur des blocs **créés par l'agent dans le même flux** (refs `e2eprod-…` / `agenttest-…`) — la page était d'ailleurs restaurée à l'identique (md5 d'origine), ce qui prouve qu'aucun bloc starter n'a été touché. Au lab, la série 003 (TOOLS_DISCOVERED, S2/S4) avait modifié des blocs existants mais sur l'env local avec blocs de test.
 **À valider en réel** (première demande de modif d'un bloc starter) : CAS `expected_hash` frais sur contenu existant, bloc sans ref agent → fallback index, sérialisation/reformatage HTML `atomic-wind/box` via `wp_kses_post` (md5 diffère après écriture, cf. TOOLS_DISCOVERED ligne 91), restauration par révision. C'est le premier scénario de la boucle agent à tester avec un bloc starter (modification d'un texte existant).
+
+## Exp 026 — PREMIÈRE modification réelle d'un bloc EXISTANT du site (page About, Fix Day) — point de vigilance Exp 025 LEVÉ (2026-08-04)
+
+**Contexte** : point de vigilance Exp 025 (utilisateur) : jamais modifié un bloc existant en réel (ni connect ni selfhare) — tous les updates passés (Exp 018/020) portaient sur des blocs créés par l'agent dans le même flux. Mission : tester la modification d'un bloc **préexistant** via le MCP prod (portage `mcp-block-crud-2.7.0`, serveur Next relancé `next build` + `next start -p 3010`). Script : `Temp/opencode/mcp-e2e-existing-blocks.mjs`.
+
+### État réel de la page 5 About (avant test)
+- **get_page_blocks (MCP prod)** : md5 `d35956a796fb5b14c79cfda5c1065b82`, **6 blocs racine** : index 0 `atomic-wind/box` (starter About Us, content vide), index 1 `core/group` **ref `agenttest-c4d8da4ddf28`** (bloc créé Exp 021, fond vert), index 2-5 `atomic-wind/box` (starter, content vide).
+- **Structure réelle** (post_content brut REST) : les 5 racines starter `atomic-wind/box` **contiennent chacune 1 innerBlock** (un enfant `atomic-wind/box`) → `update_block_content` les **refuse par design** (class-block-editor.php:324 : « contient des blocs imbriqués et ne peut pas être modifié directement »). 33 paires de commentaires `atomic-wind/box` au total, 1 seul `wp:group` (pas de doublon — le parseur top-level maison buggé comptait 12 racines, corrigé par comptage des commentaires bruts).
+
+### Résultats — **5/5 PASS**
+| Test | Résultat | Preuve |
+|---|---|---|
+| **A1** dry_run update bloc starter index 0 | ✅ **refus dès le dry_run** : « Le bloc #0 (atomic-wind/box) contient des blocs imbriqués et ne peut pas être modifié directement. » (success:false, aucun refus d'écriture nécessaire) | md5 inchangé |
+| **A2** update RÉEL bloc starter index 0 | ✅ **refus par design**, même message, **contenu intact** | md5 `d35956a7…` inchangé, nb blocs identique |
+| **B1** dry_run update bloc EXISTANT ref `agenttest-c4d8da4ddf28` | ✅ aucun effet (md5 inchangé, texte de test absent) | md5 `d35956a7…` |
+| **B2** update RÉEL bloc existant (modif du texte dans le groupe agent) | ✅ **SUCCÈS** : ref `agenttest-c4d8da4ddf28` **conservée**, contenu vérifié par relecture (get_page_blocks), md5 avance | `d35956a7…` → `afae5278…` |
+| **C1** restauration du contenu ORIGINAL (update inverse, CAS) | ✅ **md5 final == md5 initial** (`d35956a796fb5b14c79cfda5c1065b82`) — restauration à l'identique **sans delta de reformatage** (contrairement au lab série 003 ligne 91 : ici le contenu restauré est le HTML déjà normalisé par `wp_kses_post` lors de la création Exp 021) | vérifié via MCP + REST brut |
+
+### Preuves brutes (après test)
+- **REST core brut** (page 5, context=edit) : len 22052, md5 `d35956a796fb5b14c79cfda5c1065b82` = **identique à l'état initial**, « TEXTE MODIFIE » absent, texte original « positionnee juste apres » présent, marqueurs `agenttest-c4d8da4ddf28 start/end` intacts.
+- **Révisions** : id 108 (2026-08-04 09:18:43, len 22069, contient TEXTE MODIFIE) + id 109 (09:18:44, len 22052, contenu original) = les 2 écritures réelles B2+C1 (1 révision par écriture, comportement 2.7.0).
+
+### Découvertes structurantes
+1. **La modification d'un bloc EXISTANT du site fonctionne en réel** : CAS frais + ref stable → update → relecture → restauration à l'identique. Le point de vigilance Exp 025 est levé (au moins via le MCP connect ; la boucle selfhare reste à tester en réel par l'utilisateur dans l'UI).
+2. **Les blocs starter `atomic-wind/box` (avec innerBlocks) ne sont PAS modifiables directement** via `update_block_content`/`update_blocks` — refus propre par design (message actionnable, contenu intact). L'agent doit donc cibler les blocs **sans** innerBlocks (groupe agent, paragraphes…) ou utiliser les ops structurelles (transform/wrap/unwrap). Comportement déjà couvert au lab (V3-6, série 003) — confirmé en réel.
+3. Le refus intervient **avant** le dry_run (validation structurelle), donc même dry_run → success:false (aucune écriture simulée possible sur un bloc imbriqué).
+
+### État Fix Day
+Page About intacte (md5 `d35956a796fb5b14c79cfda5c1065b82`, blocs de test Exp 021 toujours en place). Serveur Next : relancé (port 3010). Aucune modification du code (ni plugin, ni MCP, ni selfhare).
+
+### Suites
+Tester la boucle selfhare en réel dans l'UI Fix Day (lectures auto + confirmation + reprise auto) — 1er scénario d'écriture : modif d'un texte dans un bloc **modifiable** (groupe agent ou bloc sans innerBlocks), puis portage prod selfhare (8 fichiers Exp 024 + 4 fichiers Exp 025) + zip + docs. Fils ouverts inchangés : merge `mcp-block-crud-2.7.0`, lint global houetor (62), probes untracked.
