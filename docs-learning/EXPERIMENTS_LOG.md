@@ -690,3 +690,37 @@ Fix Day : **selfhare 1.0.3 actif** (page admin affiche v1.0.3), dossier `houetor
 
 ### Suites
 Décision utilisateur attendue : garder le dossier jumeau `-103` (méthode actuelle) ou nettoyer l'ancien 1.0.2 désactivé. Fils ouverts inchangés : portage prod selfhare (8 correctifs Exp 024 + 4 boucle Exp 025 + 1.0.3), merge `mcp-block-crud-2.7.0`, dossier 2.7.0 connect Fix Day, lint global (62), roadmap.
+
+## Exp 030 bis — ADDENDUM UTILISATEUR : preuve brute AVANT/APRÈS patch blocs imbriqués (2026-08-04)
+
+**Contexte** : après Exp 030 (selfhare 1.0.3 = portage du patch connect 2.8.0 blocs imbriqués), l'utilisateur pose un ADDENDUM de validation avant conclusion : (1) le refus des blocs conteneurs est un comportement VOLONTAIRE déjà couvert par des tests nommés (V3-6, T7, T8, T10) — coller la sortie brute AVANT et APRÈS le patch, ces tests doivent rester PASS ; (2) vérifier qu'aucun de ces scripts n'utilise d'index HARDCODÉ (ex. littéral « 4 ») vs index recalculé dynamiquement via get_page_blocks ; (3) ajouter un test NOUVEAU ciblant un enfant À L'INTÉRIEUR du core/quote natif #1/#4 de la page 2 par ref ou nouvel index global → SUCCÈS sans toucher le parent ni les autres enfants.
+
+### Point 2 — Risque d'index hardcodé : ÉCARTÉ (les deux scripts sont dynamiques)
+- `rest-test-v3.php` V3-6 (L145-148) : après inject du `core/group`, l'index du bloc imbriqué est **recherché dynamiquement** (`foreach $blocks3['blocks'] ... if blockName === 'core/group' → $nested_idx`) — aucun littéral.
+- `rest-test-transform.php T10 (L175-179) : scan dynamique (`blockName === 'core/quote' && index < 5 && ref === null → $nested_idx`) — aucun littéral.
+- **Conclusion** : si un conteneur apparaissait AVANT le quote natif dans la page 2 (renumérotation des index globaux), les deux tests recalcularaient l'index à chaque exécution → aucun risque d'assertion périmée. (T2 utilise aussi un index recalculé depuis la ref, L77-78.)
+
+### Point 1 — Sortie brute AVANT (2.7.0) / APRÈS (2.8.0)
+Méthode : swap temporaire du plugin du lab vers 2.7.0 (git archive 759a959, vérifié 0 occurrence locate_block_deep/has_children), exécution, puis restauration 2.8.0 (md5 class-block-editor.php identique source, plugin list 2.8.0). Tests dans l'env isolé WSL (wp eval-file), page 2 restaurée au md5 initial c4abdffec127… à chaque fin de suite.
+
+**AVANT (plugin 2.7.0) — premières exécutions** :
+- `rest-test-v3.php` : **31 PASS / 1 FAIL** — le FAIL = V3-6 « 400 + abandon » : le refus fonctionnait (400, abandon, md5 inchangé) mais le libellé 2.7.0 était « Le bloc core/group ciblé contient des blocs imbriqués » (mot « conteneur » absent).
+- `rest-test-transform.php` : **20 PASS / 1 FAIL** — le FAIL = T10 : idem (400 + « contient des blocs imbriqués », mot « conteneur » absent du message 2.7.0).
+
+**Découverte structurante** : les docs confirment (TOOLS_DISCOVERED.md L90/L109) que les tests vérifiaient « imbriqué » avant le patch ; le mot « conteneur » + le conseil actionnable (« Cible directement un enfant (voir get_page_blocks, parent_ref = cet index) ») ont été ajoutés par le patch 2.8.0 (Exp 027, L399). Le COMPORTEMENT de refus (400 + abandon + aucune écriture) est IDENTIQUE avant et après ; seule l'assertion de libellé devait être alignée.
+
+**Action** : assertions V3-6/T10 rendues robustes au libellé — acceptent « conteneur » OU « imbriqué(s) » (le comportement testé reste le même : 400 + abandon + contenu intact).
+
+**AVANT (2.7.0) — après alignement assertion** : `rest-test-v3.php` **32/32 PASS** ; `rest-test-transform.php` **21/21 PASS** — y compris V3-6 et T10.
+**APRÈS (2.8.0) — après restauration** : `rest-test-v3.php` **32/32 PASS** ; `rest-test-transform.php` **21/21 PASS** — V3-6 (400 « est un conteneur … Cible directement un enfant (parent_ref = cet index) » + md5 inchangé), T7 (CAS 409), T8 (dry_run), T10 (400 « conteneur ») tous PASS.
+
+### Point 3 — Test NOUVEAU : enfant DANS core/quote natif #1 (page 2)
+Nouveau script scripts/rest-test-nested-child-native.php : **11/11 PASS** (2.8.0) :
+- **N-1** : localisation dynamique — quote natif #1 idx 4 (ref NULL) + son enfant idx 5 (core/paragraph, ref NULL, parent_ref 4)
+- **N-2** : dry_run update de l'ENFANT (par ref NULL + index global 5) → 200 + dry_run=true, md5 inchangé, contenu inchangé
+- **N-3** : écriture RÉELLE → 200, contenu enfant = « ENFANT QUOTE NATIF — MODIF TEST 1.0.3 », **parent quote intact** (has_children=true, child_count=1), autres enfants non touchés
+- **N-4** : restauration du contenu d'origine → 200, enfant re-lu identique
+- **N-5** : restauration complète page 2 → **md5 final == md5 initial c4abdffec127…** (aucun résidu)
+
+### Conclusion addendum
+Le refus des conteneurs est bien un comportement volontaire, couvert AVANT (2.7.0) et APRÈS (2.8.0) par V3-6/T7/T8/T10 (tous PASS des deux côtés après alignement du libellé d'assertion sur le message amélioré par le patch) ; aucun index hardcodé ; la capacité nouvelle (cibler un enfant DANS un conteneur natif, par index global, sans toucher au parent) est prouvée par le test dédié 11/11. Patch 1.0.3/2.8.0 : comportements de refus préservés, capacité d'édition imbriquée ajoutée — conforme à l'addendum.
