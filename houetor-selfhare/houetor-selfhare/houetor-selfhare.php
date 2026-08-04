@@ -4,7 +4,7 @@
  * Plugin Name: Houetor SelfHare
  * Plugin URI:  https://houetor.com/selfhare
  * Description: Assistant IA WordPress propulsé par SelfHare / Houetor
- * Version:     1.0.2
+ * Version:     1.0.3
  * Author:      Houetor
  * Author URI:  https://houetor.com
  * License:     GPL-2.0+
@@ -23,7 +23,7 @@ add_action('init', function () {
     }
 }, 5);
 
-define('HOUETOR_SELFHARE_VERSION', '1.0.2');
+define('HOUETOR_SELFHARE_VERSION', '1.0.3');
 define('HOUETOR_SELFHARE_FILE', __FILE__);
 define('HOUETOR_SELFHARE_PATH', plugin_dir_path(__FILE__));
 define('HOUETOR_SELFHARE_URL', plugin_dir_url(__FILE__));

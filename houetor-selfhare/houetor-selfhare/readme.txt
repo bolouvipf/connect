@@ -3,7 +3,7 @@ Contributors: houetor
 Tags: ai, assistant, wordpress, automation
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 1.0.2
+Stable tag: 1.0.3
 Requires PHP: 7.4
 License: GPL v2 or later
 
@@ -29,6 +29,11 @@ API REST /houetor-selfhare/v1/ pour intégration tierce.
 4. Une fois activée, l'Assistant est accessible dans SelfHare > Assistant
 
 == Changelog ==
+
+= 1.0.3 =
+* Édition de blocs imbriqués : get_page_blocks liste désormais tous les blocs (enfants inclus) avec parent_ref, depth, has_children et child_count
+* update_block_content cible un bloc à n'importe quelle profondeur (locate_block_deep) ; les conteneurs retournent une erreur actionnable invitant à cibler un enfant
+* Aperçu (compute_preview) aligné : localisation récursive du bloc avant résumé
 
 = 1.0.2 =
 * Sécurité : aperçu obligatoire côté serveur avant toute exécution (token à usage unique), conflit d'édition détecté (CAS + expected_hash), limite de taux étendue aux créations, clé de licence chiffrée au stockage

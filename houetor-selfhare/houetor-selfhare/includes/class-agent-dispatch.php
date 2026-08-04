@@ -276,11 +276,18 @@ class Houetor_SelfHare_Dispatch {
     }
 
     private static function compute_preview($action, $params) {
-        $prefix = explode('_', $action, 2)[0] ?? '';
-        $type   = explode('_', $action, 2)[1] ?? '';
-        if (in_array($prefix, ['create', 'update', 'delete'], true) && !empty($type)) {
-            $params['post_type'] = $type;
-            $action = $prefix . '_content';
+        $explicit_cases = [
+            'create_content', 'update_content', 'delete_content',
+            'inject_page', 'delete_block', 'revert_to_revision',
+            'get_wp_pages', 'get_page_blocks', 'update_block_content', 'get_page_history',
+        ];
+        if (!in_array($action, $explicit_cases, true)) {
+            $prefix = explode('_', $action, 2)[0] ?? '';
+            $type   = explode('_', $action, 2)[1] ?? '';
+            if (in_array($prefix, ['create', 'update', 'delete'], true) && !empty($type)) {
+                $params['post_type'] = $type;
+                $action = $prefix . '_content';
+            }
         }
 
         switch ($action) {
@@ -455,14 +462,9 @@ class Houetor_SelfHare_Dispatch {
                 $parsed = parse_blocks($post['post_content']);
                 $old_block_text = '';
                 $actual = 0;
-                foreach ($parsed as $b) {
-                    if (!empty($b['blockName'])) {
-                        if ($actual === $block_index) {
-                            $old_block_text = self::extract_block_text($b);
-                            break;
-                        }
-                        $actual++;
-                    }
+                $node = &self::locate_block_deep($parsed, $block_index, $actual);
+                if ($node !== null) {
+                    $old_block_text = self::extract_block_text($node);
                 }
                 $old_len = strlen($old_block_text);
                 $new_len = strlen(wp_strip_all_tags($new_content));
@@ -769,20 +771,67 @@ class Houetor_SelfHare_Dispatch {
         $blocks = parse_blocks($content);
         $result = [];
         $index = 0;
+        self::flatten_blocks_recursive($blocks, $result, $index, null, 0);
+
+        return ['success' => true, 'blocks' => $result, 'count' => count($result)];
+    }
+
+    /**
+     * Aplatit l'arbre de blocs (blocs imbriqués inclus) en liste plate
+     * avec index global, parent_ref, depth, has_children et child_count.
+     */
+    private static function flatten_blocks_recursive($blocks, &$result, &$index, $parent_ref, $depth) {
         foreach ($blocks as $block) {
             $block_name = $block['blockName'] ?? '';
             if (empty($block_name)) continue;
 
+            $child_count = 0;
+            foreach ($block['innerBlocks'] ?? [] as $inner) {
+                if (!empty($inner['blockName'])) $child_count++;
+            }
+
+            $ref = $index;
             $text = self::extract_block_text($block);
             $result[] = [
                 'index' => $index,
                 'blockName' => $block_name,
                 'content' => $text,
+                'parent_ref' => $parent_ref,
+                'depth' => $depth,
+                'has_children' => $child_count > 0,
+                'child_count' => $child_count,
             ];
             $index++;
-        }
 
-        return ['success' => true, 'blocks' => $result, 'count' => count($result)];
+            if (!empty($block['innerBlocks'])) {
+                self::flatten_blocks_recursive($block['innerBlocks'], $result, $index, $ref, $depth + 1);
+            }
+        }
+    }
+
+    /**
+     * Localise un bloc par son index global (blocs imbriqués inclus)
+     * et retourne une référence vers le nœud trouvé, ou null.
+     */
+    private static function &locate_block_deep(&$blocks, $block_index, &$counter = 0) {
+        $null = null;
+        foreach ($blocks as &$block) {
+            if (empty($block['blockName'])) continue;
+
+            if ($counter === intval($block_index)) {
+                return $block;
+            }
+            $counter++;
+
+            if (!empty($block['innerBlocks'])) {
+                $found = &self::locate_block_deep($block['innerBlocks'], $block_index, $counter);
+                if ($found !== null) {
+                    return $found;
+                }
+            }
+        }
+        unset($block);
+        return $null;
     }
 
     private static function get_page_history($params) {
@@ -830,28 +879,22 @@ class Houetor_SelfHare_Dispatch {
 
         $blocks = parse_blocks($content);
 
-        $actual_index = 0;
-        $target_idx = null;
-        foreach ($blocks as $idx => $block) {
-            if (empty($block['blockName'])) continue;
-            if ($actual_index === $block_index) {
-                $target_idx = $idx;
-                break;
-            }
-            $actual_index++;
+        $counter = 0;
+        $target = &self::locate_block_deep($blocks, $block_index, $counter);
+
+        if ($target === null) {
+            $flat = [];
+            $tmp_idx = 0;
+            self::flatten_blocks_recursive($blocks, $flat, $tmp_idx, null, 0);
+            $total = count($flat);
+            return ['success' => false, 'message' => "Bloc #$block_index introuvable (0-" . ($total - 1) . " disponible, blocs imbriqués inclus). Utilise get_page_blocks pour voir les indices valides."];
         }
 
-        if ($target_idx === null) {
-            $total = 0;
-            foreach ($blocks as $b) { if (!empty($b['blockName'])) $total++; }
-            return ['success' => false, 'message' => "Bloc #$block_index introuvable (0-" . ($total - 1) . " disponible). Utilise get_page_blocks pour voir les indices valides."];
-        }
+        $block_name = $target['blockName'];
+        $old_html = $target['innerHTML'];
 
-        $block_name = $blocks[$target_idx]['blockName'];
-        $old_html = $blocks[$target_idx]['innerHTML'];
-
-        if (!empty($blocks[$target_idx]['innerBlocks'])) {
-            return ['success' => false, 'message' => "Le bloc #$block_index ($block_name) contient des blocs imbriqués et ne peut pas être modifié directement."];
+        if (!empty($target['innerBlocks'])) {
+            return ['success' => false, 'message' => "Le bloc ciblé ($block_name) est un conteneur (il a des blocs enfants) — impossible d'y écrire du contenu directement. Utilise get_page_blocks pour lister ses enfants (parent_ref = #$block_index) et cible l'un d'eux par son propre index."];
         }
 
         $old_html = trim($old_html);
@@ -868,15 +911,15 @@ class Houetor_SelfHare_Dispatch {
             $new_html = $new_text;
         }
 
-        $blocks[$target_idx]['innerHTML'] = $new_html;
-        foreach ($blocks[$target_idx]['innerContent'] as $ic => $chunk) {
+        $target['innerHTML'] = $new_html;
+        foreach ($target['innerContent'] as $ic => $chunk) {
             if (is_string($chunk)) {
-                $blocks[$target_idx]['innerContent'][$ic] = $new_html;
+                $target['innerContent'][$ic] = $new_html;
             }
         }
 
-        if ($block_name === 'core/heading' && isset($blocks[$target_idx]['attrs']['content'])) {
-            $blocks[$target_idx]['attrs']['content'] = wp_strip_all_tags($new_text);
+        if ($block_name === 'core/heading' && isset($target['attrs']['content'])) {
+            $target['attrs']['content'] = wp_strip_all_tags($new_text);
         }
 
         $new_post_content = serialize_blocks($blocks);
