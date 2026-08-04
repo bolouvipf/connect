@@ -492,3 +492,30 @@ Page About intacte (md5 `d35956a796fb5b14c79cfda5c1065b82`, blocs de test Exp 02
 
 ### Suites
 Tester la boucle selfhare en réel dans l'UI Fix Day (lectures auto + confirmation + reprise auto) — 1er scénario d'écriture : modif d'un texte dans un bloc **modifiable** (groupe agent ou bloc sans innerBlocks), puis portage prod selfhare (8 fichiers Exp 024 + 4 fichiers Exp 025) + zip + docs. Fils ouverts inchangés : merge `mcp-block-crud-2.7.0`, lint global houetor (62), probes untracked.
+
+## Exp 026 bis — Carte des capacités sur blocs starter imbriqués (dry_run uniquement, page About Fix Day) (2026-08-04)
+
+**Contexte** : après Exp 026 (modif bloc existant OK, bloc starter refusé), l'utilisateur demande : « Vérifie les possibilités de modifier ces blocs (sans faire des modifs d'abord) ». → Batterie **100 % dry_run** des 8 ops MCP prod sur le bloc starter index 0 (`atomic-wind/box` « About Us », 1 innerBlock), page 5, md5 `d35956a796fb5b14c79cfda5c1065b82`. Script : `Temp/opencode/mcp-dryrun-capabilities.mjs`.
+
+### Résultats — 4 refus / 4 OK, page INTACTE
+| Op | Verdict | Message |
+|---|---|---|
+| `update_block_content` (dry_run) | **REFUS** | « Le bloc #0 (atomic-wind/box) contient des blocs imbriqués et ne peut pas être modifié directement. » |
+| `update_blocks` batch (dry_run) | **REFUS** | « Le bloc atomic-wind/box ciblé contient des blocs imbriqués — batch abandonné, aucune écriture effectuée. » |
+| `transform_block` (dry_run) | **REFUS** | « ne peut pas être transformé directement » (innerBlocks) |
+| `unwrap_block` (dry_run) | **REFUS** | « n'est pas un groupe — seul core/group peut être dégroupé » (+ conseil traduit) |
+| `duplicate_block` (dry_run) | **OK** | duplication sous-arbre entier prête (ref null, index 1 simulé) |
+| `move_block` (dry_run) | **OK** | déplacement vers end prêt (index 5 simulé) |
+| `wrap_block` (dry_run) | **OK** | enrobage 1 bloc dans core/group prêt |
+| `delete_block` (dry_run) | **OK** | suppression prête |
+
+**Contrôle final** : md5 `d35956a7…` **inchangé**, 6 blocs → aucune écriture (dry_run respecté, cohérent avec la doc : dry_run ne consomme ni rate limit, ni révision, ni audit).
+
+### Découvertes structurantes
+1. **Les 4 ops « contenu » (update/batch/transform/unwrap) refusent toutes les innerBlocks par design** — garde-fou volontaire (class-block-editor.php:324, 417, 591, 1041) : impossible de modifier ou transformer un bloc imbriqué avec le plugin 2.7.0.
+2. **`locate_block` ne descend JAMAIS dans les innerBlocks** (parcours racine uniquement, lignes 257-271) → même un enfant `atomic-wind/box` n'est pas ciblable par ref ou index. `get_page_blocks` n'expose d'ailleurs que les racines (content vide pour les starters).
+3. **Les 4 ops structurelles (duplicate/move/wrap/delete) acceptent les blocs imbriqués** — elles manipulent le sous-arbre entier sans toucher au contenu.
+4. **Conséquence produit** : pour « corriger le texte d'une section starter » (cas d'usage réel de l'agent), les routes 2.7.0 ne permettent pas la modification directe → piste évolution : route `replace_block` (remplacer un sous-arbre entier par un contenu neuf, CAS + révision + audit). Candidat roadmap à proposer à l'utilisateur.
+
+### État
+Aucune modification de code ni de contenu. Fix Day page About intacte (md5 `d35956a7…`). Serveur Next toujours actif (3010). Docs : ce fichier + LEARNING_STATE (section Exp 026 complétée).
