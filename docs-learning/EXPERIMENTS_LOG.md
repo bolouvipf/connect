@@ -650,3 +650,43 @@ Fix Day : page Contact **modifiée en réel et CONSERVÉE** (décision utilisate
 
 ### Suites
 Audit selfhare (capacité = édition bloc existant + imbriqué, comparer class-block-editor/agent-dispatch) → mise à jour si nécessaire (feu vert). Fils ouverts inchangés : portage prod selfhare, merge `mcp-block-crud-2.7.0`, dossier 2.7.0 Fix Day, lint global (62), roadmap.
+
+## Exp 030 — SELFHARE 1.0.3 : ÉDITION DE BLOCS IMBRIQUÉS (audit + portage + test réel Fix Day) (2026-08-04)
+
+**Objectif** : audit demandé Exp 029 (« selfhare sait-il modifier un bloc existant du site, y compris imbriqué ? », feu vert utilisateur pour mise à jour) → implémenter + déployer + prouver en réel.
+
+### Audit (avant) : selfhare 1.0.2 ne sait PAS
+- `get_page_blocks` : **top-level uniquement** (index/blockName/content) — pas de `ref`/`parent_ref`/`depth`/`has_children`/`child_count`, les enfants imbriqués invisibles
+- `update_block_content` : boucle top-level ; **refus L853-854** « Le bloc #N … contient des blocs imbriqués et ne peut pas être modifié directement » → impossible d'éditer un enfant starter (`atomic-wind/box` > `atomic-wind/text`)
+- Ciblage par index uniquement (pas de refs HWC, marqueurs `sh:ref:` réservés aux injections HTML)
+
+### Implémentation (portage pattern connect 2.8.0)
+1. `get_page_blocks` → `flatten_blocks_recursive` (L776) : liste plate **tous les blocs**, ajout `parent_ref`, `depth`, `has_children`, `child_count`
+2. `update_block_content` → `locate_block_deep` (L809, par référence) : cible un bloc **à toute profondeur** par index global ; message introuvable inclut « blocs imbriqués inclus » + bornes (0-N)
+3. Refus conteneur → **actionnable** (aligné connect L399) : « est un conteneur … Utilise get_page_blocks pour lister ses enfants (parent_ref = #N) et cible l'un d'eux par son propre index »
+4. `compute_preview` update_block_content → localisation récursive (l'ancien texte pour le warning de perte est trouvé même imbriqué)
+5. **Bug pré-existant corrigé** : `compute_preview` L281 réécrivait `update_block_content` → `update_content` (prefix `update_*`) et `delete_block` → `delete_content` — le case dédié était **inatteignable**, tout preview/execute passait par la mauvaise branche (« Contenu introuvable » systématique) → liste `$explicit_cases` (L278-287)
+6. Version **1.0.2 → 1.0.3** (header + constante + stable tag + changelog readme.txt)
+
+### Tests locaux (env WSL, script selfhare-test-016.php étendu 1.0.3)
+**53/53 PASS** — dont nouvelles sections : flatten 4 blocs (group/p/h2/p) avec index/depth/parent_ref/has_children/child_count exacts ; conteneur refusé avec message actionnable + contenu intact ; **enfant imbriqué modifié en réel local** (idx 2 dans group → « Enfant 2 modifié » + structure group préservée + get_page_blocks reflète) ; index 99 → « introuvable (0-3, blocs imbriqués inclus) ».
+
+### Déploiement Fix Day (méthode jumeau, leçon Exp 027)
+- Zip : `git archive --prefix=houetor-selfhare-103/ -o outputs/houetor-selfhare-103.zip HEAD:houetor-selfhare/houetor-selfhare` (37 824 o)
+- Upload wp-admin curl (nonce formulaire upload) : **« Le dossier de destination existe déjà »** → en fait **installé** (réplication TasteWP, 1er POST 200 silencieux)
+- Bascule plugins.php (nonces) : `houetor-selfhare` → deactivate, `houetor-selfhare-103` → activate → **1.0.3 ACTIF**
+- ⚠️ Les 2 plugins partagent le même slug WP (`houetor-selfhare.php`) → même `data-slug` sur plugins.php, versions « mélangées » ; la preuve fiable = page admin « SelfHare v1.0.3 » (footer) + test fonctionnel AJAX
+
+### Test réel Fix Day (AJAX `houetor_selfhare_dispatch`, nonce localisé `HouetorSelfHare`)
+- **Lecture imbriquée** ✅ page Contact (8) : **57 blocs aplatis**, children exposés (`{i:1 n:atomic-wind/box d:1 p:0 hc:3}`, `{i:4 n:atomic-wind/text d:2 p:1}` = bloc modifié Exp 029 visible) — impossible avant 1.0.3
+- **Écriture imbriquée réelle** ✅ page About (5), idx 2 `atomic-wind/text` (depth 2, parent_ref 1) « About Us » → « About Us [TEST 1.0.3] » : preview (summary correct) → execute CAS → succès ; relecture get_page_blocks : « About Us [TEST 1.0.3] »
+- **Restauration exacte** ✅ réécriture « About Us » : md5 final `856c1c99…`, texte `About Us` exact (REST core), **0 résidu** du texte de test
+- **Delta analysé (preuve brute)** : rev 154 (pré-test, md5 `d35956a7…` = état Exp 028 restauré) vs actuel (`856c1c99…`) : **seule différence = 1 `\n` retiré par serialize_blocks** (`</span>\n<!-- /wp:` → `</span><!-- /wp:`) — normalisation canonique identique à connect Exp 028, 0 perte sémantique ; `856c1c99…` est un état canonique déjà existant (rev 146, 144, 142)
+- **Idempotence** ✅ 2e round-trip même texte → md5 **inchangé** `856c1c99…`
+- **Note** : dry_run sur écriture sans preview_token → refus `preview_required` (design Exp 017 : confirmation obligatoire même pour dry_run, pas un bug)
+
+### État
+Fix Day : **selfhare 1.0.3 actif** (page admin affiche v1.0.3), dossier `houetor-selfhare-103/` en plus du `houetor-selfhare/` (1.0.2 désactivé), édite les blocs imbriqués du starter. Lab : commit `d71a302` (3 fichiers plugin + readme), zip suivi `houetor-selfhare.zip` reconstruit en 1.0.3 (24 fichiers, prefix `houetor-selfhare/`). Docs : Exp 030.
+
+### Suites
+Décision utilisateur attendue : garder le dossier jumeau `-103` (méthode actuelle) ou nettoyer l'ancien 1.0.2 désactivé. Fils ouverts inchangés : portage prod selfhare (8 correctifs Exp 024 + 4 boucle Exp 025 + 1.0.3), merge `mcp-block-crud-2.7.0`, dossier 2.7.0 connect Fix Day, lint global (62), roadmap.

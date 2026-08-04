@@ -377,3 +377,18 @@ Relance du serveur WP lab si tombé : `wsl -u root -e bash -c "systemctl restart
 | **Suite demandée** | ✅ vérifier si `houetor-selfhare` sait faire la même chose (modification bloc existant, y compris imbriqué) ; **feu vert de le mettre à jour** |
 
 **Pour reprendre** : audit selfhare → comparer sa capacité d'édition de blocs (existant + imbriqué) vs connect 2.8.0 (locate_block_deep, exposition parent_ref/depth/has_children/child_count, refus conteneur actionnable) → porter les écarts si nécessaire (feu vert). Fils ouverts inchangés : portage prod selfhare (8 fichiers Exp 024 + 4 Exp 025) + zip ; merge/rollout `mcp-block-crud-2.7.0` ; dossier 2.7.0 Fix Day ; lint global (62) ; roadmap. État Fix Day : Contact md5 `106e1db0…` (modifié, conservé), About `d35956a7…` intact, plugin 2.8.0 actif, serveur Next actif (3010). Docs : EXPERIMENTS_LOG Exp 029.
+
+## SELFHARE 1.0.3 ÉDITION BLOCS IMBRIQUÉS — Session 2026-08-04 (Exp 030 : audit → portage → déploiement Fix Day → test réel complet)
+
+**Mission** : audit demandé Exp 029 → selfhare 1.0.2 **incapable** (get_page_blocks top-level, refus imbriqués L853-854) → portage pattern connect 2.8.0 + **bug pré-existant corrigé** (compute_preview réécrivait `update_block_content`/`delete_block` en `*_content` — case inatteignable) → **1.0.3** (commit `d71a302`).
+
+| Élément | État |
+|---|---|
+| **get_page_blocks** | ✅ `flatten_blocks_recursive` : tous les blocs, `parent_ref`/`depth`/`has_children`/`child_count` |
+| **update_block_content** | ✅ `locate_block_deep` (profondeur quelconque, par index global) ; refus conteneur **actionnable** (« parent_ref = #N, cible un enfant par son index ») |
+| **Tests locaux** | ✅ **53/53 PASS** (selfhare-test-016.php étendu : flatten, conteneur refusé, enfant imbriqué modifié, index introuvable bornes 0-3) |
+| **Déploiement Fix Day** | ✅ méthode jumeau (zip `houetor-selfhare-103/` 37 824 o, upload wp-admin, bascule désactiver/activer) → **1.0.3 ACTIF** (page admin « SelfHare v1.0.3 ») ; ⚠️ mêmes slugs WP → data-slug partagés, vérif par footer admin + test AJAX |
+| **Test réel (AJAX dispatch)** | ✅ lecture Contact : **57 blocs aplatis** (enfants exposés, bloc Exp 029 visible) ; **écriture réelle About idx 2 (depth 2)** « About Us » → « About Us [TEST 1.0.3] » CAS OK ; **restauration exacte** « About Us » 0 résidu ; **delta = 1 `\n`** serialize_blocks (canonical, rev 154 `d35956a7…` vs actuel `856c1c99…`, état canonique déjà vu rev 146/144/142) ; **idempotent** (2e round-trip md5 identique) |
+| **Note dry_run** | ✅ preview_token obligatoire avant dry_run sur écriture (design Exp 017, pas un bug) |
+
+**Pour reprendre** : décision utilisateur attendue — garder le dossier jumeau `houetor-selfhare-103` (méthode actuelle) ou nettoyer le 1.0.2 désactivé. Portage prod selfhare à enrichir : 8 correctifs Exp 024 + 4 boucle Exp 025 + **1.0.3 imbriqué** (class-agent-dispatch.php) → repo `houetor` (copie du fichier, php -l, zip, upload TasteWP jumeau si dossier existant). Fils ouverts inchangés : merge/rollout `mcp-block-crud-2.7.0` ; dossier 2.7.0 connect Fix Day ; lint global (62) ; roadmap. État Fix Day : selfhare 1.0.3 actif, connect 2.8.0 actif, About md5 `856c1c99…` (canonique, sémantiquement identique à `d35956a7…`), Contact `106e1db0…`, serveur Next actif (3010). Docs : EXPERIMENTS_LOG Exp 030.
