@@ -166,7 +166,7 @@ export const HWT_TOOLS: HWTool[] = [
   },
   {
     name: 'get_page_blocks',
-    description: 'Lister la structure de blocs d\'une page (blockName, content, ref HWC, content_md5) — À RELIRE AVANT CHAQUE ÉCRITURE',
+    description: "Lire la structure COMPLÈTE de blocs d'une page WordPress (tous niveaux, blocs imbriqués inclus). Retourne : index (global), blockName, content, ref, parent_ref (index du parent), depth, has_children, child_count, content_md5 — À RELIRE AVANT CHAQUE ÉCRITURE",
     profiles: ['ONG', 'BOUTIQUE', 'COACH', 'MARKETING', 'CM'],
     params: {
       site_id: { type: 'string', required: true, description: 'ID du site connecté (obtenu via list_connected_sites)' },
