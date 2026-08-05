@@ -724,3 +724,52 @@ Nouveau script scripts/rest-test-nested-child-native.php : **11/11 PASS** (2.8.0
 
 ### Conclusion addendum
 Le refus des conteneurs est bien un comportement volontaire, couvert AVANT (2.7.0) et APRÈS (2.8.0) par V3-6/T7/T8/T10 (tous PASS des deux côtés après alignement du libellé d'assertion sur le message amélioré par le patch) ; aucun index hardcodé ; la capacité nouvelle (cibler un enfant DANS un conteneur natif, par index global, sans toucher au parent) est prouvée par le test dédié 11/11. Patch 1.0.3/2.8.0 : comportements de refus préservés, capacité d'édition imbriquée ajoutée — conforme à l'addendum.
+
+## Exp 031 — SECTION 27 : chantier blocs imbriqués rejoué de bout en bout (scripts commités + Étape 6 MCP portage) (2026-08-05)
+
+**Contexte** : la Section 27 (chantier blocs imbriqués du repo utilisateur) exige, dans l'ordre : (1) retrouver/reconstruire les scripts de test et les commiter, (2) prouver le patch appliqué, (3) vérifier le risque de renumérotation d'index (RISQUE 1), (4) rejouer la batterie complète avec preuves brutes, (5) documenter les validations réelles Fix Day, (6) mettre à jour le wrapper MCP (tools.ts + error-translator.ts) avec les 4 champs imbriqués. Interdiction de merger vers `mcp-block-crud-2.7.0`/`main` tant que les étapes ne sont pas documentées.
+
+### Étape 1 — Scripts de test commités (commit c18aa1d)
+- Les 11 scripts (série 001, V2, V3, transform, nested-child-native, structural, retention, tierpolicy, depth1, depth2-refs + README.md) ont été copiés depuis `scripts/` (hors repo) vers **`houetor-connect/tests/`** et commités.
+- Harnesses standalone rendues portables : chemins via `getenv('WP_INC')` / `getenv('HWC_PLUGIN_INC')` avec fallback lab (depth1 L36-43, depth2-refs L23-28).
+- **Bug découvert et corrigé** : `rest-test.php` (série 001) T14 (position=replace) détruisait la page 2 sans restauration → ajout capture `$GLOBALS['hwc_md5_init']` + cleanup final (restauration de révision) → la suite est **idempotente** (md5 final == initial `c4abdffec127…` sur 2 runs).
+- `php -l` : 0 erreur sur les 11 fichiers.
+
+### Étape 2 — Preuve patch appliqué (2.8.0)
+- `houetor-connect/includes/class-block-editor.php` md5 **1BB175A547CEE0220F7B94533AABBB35** == fichier fourni Section 27 (identique au commit 7400476, Exp 027).
+- Fonctions imbriquées présentes : `flatten_blocks_recursive` (L43), `locate_block_deep` (L321, récursion `innerBlocks` L336) utilisée par **toutes les écritures** — update_block_content (L382), batch_update_blocks (L483), transform_block (L651) ; `locate_block` top-level (L289) pour move/duplicate/wrap/unwrap. Commentaire L317-318 : cohérence flatten/locate exigée.
+- Messages 2.8.0 en place : « est un conteneur » L399/L493/L668 ; aucun ancien libellé « contient des blocs imbriqués » dans le code actif.
+
+### Étape 3 — RISQUE 1 (renumérotation des index) : ÉCARTÉ
+- Grep persistance plugin : `set_transient`/`update_option`/`wp_cache_set` ne concernent QUE settings_errors (admin), api_fetcher (cache HTML fetcher), connect_status (statut connexion), rate_limit (compteur 10/60 s volontaire, prouvé par les 429) et options de token/connexion. **Aucun stockage de block_index entre requêtes** (87 occurrences = passage de paramètre par requête).
+- MCP : 50 occurrences `block_index` côté src, 26 côté portage — pass-through de params (le seul « cache » est un header HTTP `cache-control: no-cache`, route-handler.ts L67). Chaque écriture repose sur une lecture fraîche (relire avant écrire + CAS) → aucun index périmé possible.
+
+### Étape 4 — Batterie complète rejouée (preuves brutes, env isolé localhost:8888)
+| Batterie | Résultat |
+|---|---|
+| test-nested-block-depth1.php (harness vrai parse_blocks/serialize_blocks) | ALL PASS |
+| test-nested-block-depth2-refs.php (columns>column>paragraph + ref) | « TOUS LES TESTS PASSENT » |
+| rest-test-nested-child-native.php | 11/11 |
+| rest-test-v3.php | 32/32 |
+| rest-test-transform.php | 21/21 |
+| rest-test-structural.php | 42/42 |
+| rest-test-retention.php | 9/9 |
+| rest-test-tierpolicy.php | 11/11 |
+| rest-test.php (série 001, idempotente) | 18 tests, restauration exacte md5 |
+| rest-test-v2.php | 14 tests, audit page 3 vérifié |
+| test-connect.php (standalone, hors WP — via `wp eval-file` → Fatal « Cannot redeclare get_option » attendu, stubs) | 35 PASS / 0 FAIL |
+| MCP vitest (13 unit + 29 server) | 42/42 |
+| MCP integration-test.mjs (PORT 8891) | 52/52 |
+| MCP scenarios-test.mjs (PORT 8892, reset rate limit avant) | **41/41 PASS** (S0-S12 : relecture, create, update CAS, transform, tier policy + suggestion appliquée, dry_run, batch, delete, 409 périmé refusé sans écrasement, move, duplicate, wrap, unwrap, SSE 32 tools, restaurations exactes) |
+
+### Étape 5 — Validations réelles existantes (documentées)
+Exp 027 (modification réelle enfant imbriqué About Fix Day), Exp 028 (2.8.0), Exp 029 (Contact), Exp 030 bis (addendum AVANT/APRÈS) — déjà tracées dans ce log ; aucune nouvelle action prod requise pour la Section 27.
+
+### Étape 6 — Wrapper MCP portage (commit 0aa53d5)
+- `portage-app-mcp/src/tools.ts` : description `get_page_blocks` alignée sur `src/tools.ts:29` — « structure COMPLÈTE (tous niveaux, blocs imbriqués inclus) … parent_ref (index du parent), depth, has_children, child_count, content_md5 ».
+- `portage-app-mcp/src/error-translator.ts` : 3 cas 2.8.0 ajoutés (400 conteneur écriture/batch, 404 imbriqué introuvable, 400 conteneur transform), en-tête v2.8.0.
+- `dispatch.ts` : **inchangé** — pass-through de la réponse REST brute (`pluginRequest` L800) → les 4 champs proviennent du plugin sans filtrage.
+- `tsc --noEmit` : **0 erreur** miroir et portage (l'import `@/lib/supabase-service` du portage résout en lecture vers le repo originel via baseUrl — aucun fichier originel touché).
+
+### Conclusion
+Section 27 exécutée de bout en bout : étapes 1, 2, 3, 4, 6 réalisées avec preuves brutes (batterie complète verte : plugin + MCP 42/42/52/52/41/41), étape 5 couverte par les Exp 027-030 bis. Aucun merge vers `mcp-block-crud-2.7.0`/`main` (non autorisé sans l'utilisateur). Restes : push docs (Exp 031 + LEARNING_STATE), vérification finale git.
