@@ -799,3 +799,34 @@ Section 27 exécutée de bout en bout : étapes 1, 2, 3, 4, 6 réalisées avec p
 
 ### Conclusion
 Le serveur MCP est prêt à merger (Étape 6 portée et alignée miroir = prod), le zip 2.8.0 est livrable (sans fuite de token), et la validation de référence est désormais 1 commande (`test-suite.sh` 19/19). Restent dépendants de l'utilisateur : merge `mcp-block-crud-2.7.0` → main + déploiement Vercel + E2E contre le serveur déployé + dossier Fix Day 2.8.0 + packaging selfhare 1.0.3 + décisions artefacts. Suivi complet : `ROADMAP_MARKET.md`.
+
+## Exp 032 — MISSION 3 : selfhare 1.0.3 version unique + zip + swap Fix Day + tests réels MCP (2026-08-05)
+
+**Contexte** : items #8/#9 de la ROADMAP MARCHÉ — mettre fin au « jumeau » `houetor-selfhare-103/`, intégrer 1.0.3 (8 correctifs Exp 024 + boucle Exp 025 + édition imbriquée Exp 030) en version unique dans le repo prod, zip officiel, upload Fix Day et test réel via le MCP.
+
+### #8 — Version unique dans le repo prod (commits `5631f50` + `ab18fcf`, repo houetor, branche `mcp-block-crud-2.7.0`)
+- **10 fichiers copiés lab → prod** (hash vérifiés) : les 8 correctifs Exp 024 + boucle Exp 025 (`class-agent-dispatch.php`, `class-agent-chat.php`, `admin-chat.js`, `admin-chat.css`) + `houetor-selfhare.php` (version header/constante 1.0.3). 10 fichiers identiques lab/prod vérifiés (`diff -rq`) ; php -l 0 erreur (7 fichiers) ; grep secrets 0.
+- ⚠️ **Incident de branche corrigé** : les commits selfhare ont d'abord été poussés sur `main` du repo houetor (violation de la règle — travail à faire sur `mcp-block-crud-2.7.0`) → **revert sur main** (commits `d973e79`/`d2aed40`, main resté **identique à l'état `9f8a5d0`** : diff vide vérifié) → **cherry-pick sur `mcp-block-crud-2.7.0`** avec résolution de 2 conflits (admin-chat.js, houetor-selfhare.php — version du commit porté prise, `git diff ec79b31` = vide) → push `4f81b0d..ab18fcf`. Hashs finaux : `5631f50` (10 fichiers, +561/−190) + `ab18fcf` (zip).
+- Commit (sur la branche de travail) : 10 fichiers. Le dossier `houetor-selfhare/` du repo est désormais **1.0.3 unique** (le « jumeau » vit seulement sur le serveur Fix Day, hors git).
+- `uninstall.php` : **neutralisé (noop)** — l'ancien détruisait licence chiffrée + 3 tables + rôle partagés (décision Exp 030).
+
+### #9 — Zip officiel + upload Fix Day + tests réels (commit `ab18fcf`, poussé sur `mcp-block-crud-2.7.0`)
+- **Zip** : `git archive --format=zip -o outputs/houetor-selfhare.zip HEAD -- houetor-selfhare` — ⚠️ **sans `--prefix`** (l'arbre contient déjà le dossier `houetor-selfhare/` ; le `--prefix` créait la double imbrication « dossier existe déjà » d'Exp 024/025). Vérifié : 24 fichiers, 1 niveau, Version 1.0.3 (unzip -p), grep `eHlib` = 0.
+- **Swap Fix Day** (`fixday-selfhare-install.mjs`) : upload zip (200) → désactivation jumeau 103 (302) → activation officiel (302) → vérif : **`houetor-selfhare/` ACTIF 1.0.3, jumeau inactif conservé en backup local** (la suppression du dossier détruirait la licence chiffrée — pas de suppression sans décision). Page admin : « Licence active » préservée.
+
+### Tests réels via MCP prod (Contact, page 8 — 57 blocs, depth max 5, md5 `106e1db0475e74c64028232553743599`)
+| Test | Résultat |
+|---|---|
+| Lecture | 57 blocs, parent_ref 53/57, depth 57/57, **tous les imbriqués starter ont `ref:null`** |
+| update par `ref` | ❌ success=false (pas de ref HWC sur les imbriqués) |
+| update par `block_index` sur **conteneur** (atomic-wind/box, child_count>0) | ❌ refus propre + message actionnable (« cible l'un de ses enfants par sa propre ref/index ») — comportement volontaire (famille V3-6) |
+| update par `block_index` sur **feuille** depth=3 (atomic-wind/text idx 8, contenu 16 car.) | ✅ **SUCCÈS réel** : success=true, md5 `106e1db0…`→`38f1ebdf…` — locate_block_deep localise l'imbriqué en prod |
+| restauration par update (même contenu) | ⚠️ md5 final `11765dd7…` ≠ initial (**delta 2 octets** : 15788→15786, re-sérialisation canonique) — connu famille Exp 028 : la restauration exacte passe par la réécriture du raw d'origine |
+| **restauration exacte** | ✅ réécriture du raw d'origine (révision 157) via REST core → **md5 final == md5 initial EXACT** `106e1db0475e74c64028232553743599`, count 57 — Contact intact |
+| Smoke pages | ✅ About 80 blocs (`856c1c99…`), Services 104 blocs (`3e40316e…`) inchangés |
+
+**Découvertes structurantes** : (1) sur les imbriqués starter **sans ref**, le ciblage est par `block_index` global (flatten) ; (2) le refus conteneur est re-sérialisé en erreur `success=false` + message avec conseil → l'agent doit choisir une feuille ou descendre ; (3) `update_block_content` ne reproduit jamais le raw exact (normalisation serialize_blocks) → **toute restauration « à l'identique » exige la réécriture du raw d'origine (révision)** — le md5 exact est le seul critère fiable.
+
+**État Fix Day final (2026-08-05 soir)** : `houetor-connect` 2.8.0 officiel ACTIF (dossier unique) + `houetor-selfhare` 1.0.3 officiel ACTIF + jumeau 103 inactif (backup) — token WP restauré, toutes les pages intactes (md5 d'origine).
+
+**Pour reprendre** : mise à jour docs + push lab `opencode-learning` (cette expérience). Restent utilisateur : merge `mcp-block-crud-2.7.0` → main houetor (#2), déploiement Vercel (#3) + E2E déployé (#4), dossier Fix Day 2.8.0 connect (#6 ✅ en fait — fait par Exp 032 via upload officiel ; vérifier), artefacts Fix Day (#10), lint global, README marché (#17/#18).

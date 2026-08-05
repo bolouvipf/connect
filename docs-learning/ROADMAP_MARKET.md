@@ -32,8 +32,8 @@
 
 | # | Tâche | Qui | Statut |
 |---|---|---|---|
-| 8 | Intégrer 1.0.3 en version unique dans le repo prod (fin du « jumeau » `houetor-selfhare-103/`) : correctifs Exp 024 (8) + boucle Exp 025 (4) + imbriqué, uninstall sécurisé | 🤝 | ⬜ À FAIRE |
-| 9 | Zip `houetor-selfhare.zip` 1.0.3 + upload Fix Day + test réel (Contact 57 blocs, écriture imbriquée, restauration) | 🤝 | ⬜ À FAIRE |
+| 8 | Intégrer 1.0.3 en version unique dans le repo prod (fin du « jumeau » `houetor-selfhare-103/`) : correctifs Exp 024 (8) + boucle Exp 025 (4) + imbriqué, uninstall sécurisé | 🤝 | ✅ FAIT — commit `5631f50` (10 fichiers, +561/−190, branche `mcp-block-crud-2.7.0`) ; `houetor-selfhare/` prod = 1.0.3 unique, diff lab↔prod vide ; uninstall noop (licence/tables partagées) ; swap Fix Day fait, jumeau 103 **désactivé conservé en backup serveur** (suppression = décision 👤, détruirait la licence chiffrée) — ⚠️ incident de branche corrigé (commits d'abord sur main → revert `d973e79`/`d2aed40` main == `9f8a5d0`, cherry-pick sur la branche de travail) |
+| 9 | Zip `houetor-selfhare.zip` 1.0.3 + upload Fix Day + test réel (Contact 57 blocs, écriture imbriquée, restauration) | 🤝 | ✅ FAIT — commit `ab18fcf` (branche `mcp-block-crud-2.7.0`) ; zip sans `--prefix` (arbre contient le dossier), 24 fichiers, Version 1.0.3 vérifiée, 0 `eHlib` ; upload + activation ACTIF ; tests MCP réels : lecture 57 blocs depth 5, update feuille imbriquée par `block_index` OK, conteneur refusé (design), restauration exacte via révision REST → md5 `106e1db0…` exact (détail : Exp 032) |
 | 10 | Décision artefacts de test Fix Day (bloc Services + « TEST HOUETOR 1.0.3 ») : retirer ou assumer | 👤 | ⬜ À FAIRE |
 
 ## P1 — Sécurité
