@@ -16,9 +16,9 @@
 | # | Tâche | Qui | Statut |
 |---|---|---|---|
 | 1 | Portage Étape 6 Section 27 sur branche prod (tools.ts get_page_blocks 4 champs + error-translator 3 cas 2.8.0), tsc+eslint 0 | 🤝 | ✅ FAIT — commit `3749151` sur `mcp-block-crud-2.7.0` (diff miroir lab = vide, tsc 0, eslint 0) |
-| 2 | Merge `mcp-block-crud-2.7.0` → `main` (revue diff complète, aucun secret) | 👤 | ⬜ À FAIRE |
-| 3 | Déploiement dashboard (Vercel) + vérif GET SSE 32 tools | 👤 + 🤖 | ⬜ À FAIRE |
-| 4 | E2E contre le serveur DÉPLOYÉ (CRUD page About + CAS 409 + dry_run + restauration md5) | 🤖 | ⬜ À FAIRE (réf. 9/9 Exp 018) |
+| 2 | Merge `mcp-block-crud-2.7.0` → `main` (revue diff complète, aucun secret) | 👤 + 🤖 | 🔶 FAIT (selfhare uniquement — 2026-08-05, mission 4) : cherry-pick `5631f50` + `ab18fcf` → commits `2bb4167` + `010093c` poussés sur `main` (`d2aed40..010093c`) ; diff post-merge `origin/main~2..origin/main` = **uniquement** `houetor-selfhare/` (10 fichiers) + zip — aucun secret ; les commits restants de la branche (landing/ghjk.py) volontairement exclus (hors périmètre selfhare, revue diff complète faite avant) |
+| 3 | Déploiement dashboard (Vercel) + vérif GET SSE 32 tools | 👤 + 🤖 | ✅ FAIT (2026-08-05) — GET SSE 200, 32 tools, 10/10 tools bloc après le push (E2E post-merge) ; confirmation visuelle dashboard = 👤 |
+| 4 | E2E contre le serveur DÉPLOYÉ (CRUD page About + CAS 409 + dry_run + restauration md5) | 🤖 | ✅ FAIT (2026-08-05, mission 4) — 1a→1e TOUS PASS sur serveur déployé : About 80 blocs md5 `856c1c99…` restauré exact (count 80==80, md5 identique), 409 CAS refusé contenu intact, dry_run sans effet, batch `update_blocks`, move/delete top-level, Contact imbriqué depth 2 restauré md5 exact `106e1db0…` via révision REST |
 
 ## P0 — Connect 2.8.0 livrable
 
@@ -62,6 +62,6 @@
 
 ## Rappel des règles applicables
 
-- Jamais de commit sur `main` (connect : `opencode-learning` ; houetor : `mcp-block-crud-2.7.0` tant que le merge #2 n'est pas validé).
+- Jamais de commit sur `main` (connect : `opencode-learning` ; houetor : `mcp-block-crud-2.7.0` — le merge selfhare #2 a été poussé sur `main` **uniquement parce que la mission 4 le demandait explicitement**, par cherry-pick ciblé, revue diff avant/après faite ; tout autre contenu de branche reste à merger par 👤).
 - `git add` ciblé, secrets jamais commités (le `.env.local` houetor et `.env.learning` restent hors git).
 - Preuve brute avant conclusion : `test-suite.sh` = la référence de validation.
