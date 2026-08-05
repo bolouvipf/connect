@@ -2,6 +2,7 @@
 
 > Créé 2026-08-05 après l'audit « qu'est-ce qui bloque la mise sur le marché ? ».
 > Statut mis à jour au fil des sessions. Branche de travail lab : `opencode-learning` (connect) ; prod : repo `houetor`, branche `mcp-block-crud-2.7.0` (jamais main sans l'utilisateur).
+> 📘 **Le détail pas-à-pas de CHAQUE action utilisateur (commandes, vérifs, pièges) : `docs-learning/USER_ACTIONS_GUIDE.md`.**
 
 ## Contexte (blocages identifiés 2026-08-05)
 
