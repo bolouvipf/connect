@@ -3,7 +3,7 @@
  * Lab HOUETOR Connect — Tests v3 (plugin 2.4.0)
  * POST /blocks/batch-update (atomique, 1 révision) + dry_run sur toutes les routes d'écriture
  */
-define('HWC_TEST_TOKEN', 'eHlibQROp3fU00hrR8EFJqJJ0cuM9pJy');
+define('HWC_TEST_TOKEN', get_option('hwc_token', ''));
 
 function hwc_test_req($method, $route, $params = [], $token = HWC_TEST_TOKEN) {
     $server = rest_get_server();

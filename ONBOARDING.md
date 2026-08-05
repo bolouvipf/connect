@@ -49,7 +49,7 @@ Principe : chaque découverte, test et bug est **documenté en preuve** (résult
 `C:\Users\Kimsh\Desktop\lab\.env.learning` contient :
 - WP : `http://localhost:8888`, admin `admin` / `pierre11bolouvi`, email `test@houetor.local`
 - MySQL : `houetor_connect_test` / `houetor_lab` / `pierre11bolouvi`
-- **Token API plugin** : `hwc_token` = `eHlibQROp3fU00hrR8EFJqJJ0cuM9pJy` (réponse de la lecture de l'option, à récupérer via `get_option('hwc_token')` si besoin)
+- **Token API plugin** : `hwc_token` = option WP à récupérer dynamiquement via `get_option('hwc_token')` (jamais hardcodé dans les scripts ; roté le 2026-08-05 — l'ancien littéral `eHlibQROp3fU00hrR8EFJqJJ0cuM9pJy` a fuité dans le repo public et a été révoqué)
 - Clés AI (pour expériences futures) : `GEMINI_API_KEY`, `OPENROUTER_API_KEY` — **confidentielles, jamais affichées en clair dans un chat, jamais commitées**
 
 Règle : tout identifiant ajouté à `.env.learning` reste local ; les docs n'en contiennent que des références, jamais les valeurs.

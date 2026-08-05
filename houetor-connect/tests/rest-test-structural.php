@@ -4,7 +4,7 @@
  * POST /blocks/move, /blocks/duplicate, /blocks/wrap, /blocks/unwrap
  * CAS, dry_run, révisions, audit, refs HWC.
  */
-define('HWC_TEST_TOKEN', 'eHlibQROp3fU00hrR8EFJqJJ0cuM9pJy');
+define('HWC_TEST_TOKEN', get_option('hwc_token', ''));
 
 function hwc_test_req($method, $route, $params = [], $token = HWC_TEST_TOKEN) {
     $server = rest_get_server();

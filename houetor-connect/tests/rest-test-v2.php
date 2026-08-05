@@ -3,7 +3,7 @@
  * Lab HOUETOR Connect — Tests v2 des nouvelles fonctionnalités (chantier Script 1)
  * ref HWC / CAS / rate limit / audit log / positionnement par anchor
  */
-define('HWC_TEST_TOKEN', 'eHlibQROp3fU00hrR8EFJqJJ0cuM9pJy');
+define('HWC_TEST_TOKEN', get_option('hwc_token', ''));
 
 function hwc_test_req($method, $route, $params = [], $token = HWC_TEST_TOKEN) {
     $server = rest_get_server();

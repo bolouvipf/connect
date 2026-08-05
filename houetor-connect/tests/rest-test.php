@@ -4,7 +4,7 @@
  * Usage : wp --allow-root eval-file /mnt/c/Users/Kimsh/Desktop/lab/scripts/rest-test.php
  * Contexte : plugin houetor-connect activé dans l'env de test
  */
-define('HWC_TEST_TOKEN', 'eHlibQROp3fU00hrR8EFJqJJ0cuM9pJy');
+define('HWC_TEST_TOKEN', get_option('hwc_token', ''));
 
 function hwc_test_req($method, $route, $params = [], $token = HWC_TEST_TOKEN, $headers = []) {
     $server = rest_get_server();
