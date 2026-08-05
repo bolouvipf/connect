@@ -33,3 +33,12 @@ Format : symptôme observé / cause racine (preuve code) / fix appliqué / commi
 - **Fix** : transient `hwc_ratelimit_{page_id}` (10 écritures/60s, 429) sur toutes les routes d'écriture ; table `{prefix}houetor_connect_actions_log` créée à l'activation, chaque update/create/delete/inject/uninject journalisé (before/after md5).
 - **Vérifié** : V2-12 (10 OK puis 429), V2-13 (lignes d'audit).
 - **Statut** : testé.
+
+## Bug #5 — Suite de test série 001 NON idempotente (rest-test.php T14 détruisait la page sans restauration) — ✅ CORRIGÉ (Exp 031, 2026-08-05)
+
+- **Symptôme** : `rest-test.php` (série 001) T14 (`inject position=replace`) remplaçait tout `post_content` puis la suite se terminait SANS restaurer → page 2 du lab laissée vide (`count: 0`), ce qui cassait les suites suivantes (intégration MCP : « page 2 a des blocs count=0 »).
+- **Cause racine** : bug du SCRIPT de test (le plugin, lui, est couvert par le Bug #2 : `wp_save_post_revision()` + CAS) — le script ne restaurait pas la révision en fin de suite.
+- **Fix** : capture `$GLOBALS['hwc_md5_init']` en tête de script + bloc cleanup final qui retrouve la révision ayant ce md5 et `wp_restore_post_revision()` → suite idempotente.
+- **Vérifié** : 2 runs successifs → md5 final == initial `c4abdffec12763597022af2da35cd47c` (aucun résidu).
+- **Commit** : `c18aa1d` (batteries SECTION 27 dans `houetor-connect/tests/`).
+- **Statut** : testé.
