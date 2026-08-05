@@ -773,3 +773,29 @@ Exp 027 (modification réelle enfant imbriqué About Fix Day), Exp 028 (2.8.0), 
 
 ### Conclusion
 Section 27 exécutée de bout en bout : étapes 1, 2, 3, 4, 6 réalisées avec preuves brutes (batterie complète verte : plugin + MCP 42/42/52/52/41/41), étape 5 couverte par les Exp 027-030 bis. Aucun merge vers `mcp-block-crud-2.7.0`/`main` (non autorisé sans l'utilisateur). Restes : push docs (Exp 031 + LEARNING_STATE), vérification finale git.
+
+## Exp 031 bis — ROADMAP MARCHÉ lancée : portage prod Étape 6 + zip 2.8.0 + suite 1 commande + rotation token (2026-08-05)
+
+**Contexte** : audit « qu'est-ce qui bloque la mise sur le marché » (serveur MCP non mergé/déployé, connect zip 2.7.0, selfhare 1.0.3 non packagé, sécurité token statique, pas de CI) → plan validé par l'utilisateur (voir `docs-learning/ROADMAP_MARKET.md`, 19 items) et démarrage des tâches à dépendance nulle.
+
+### #1 — Portage Étape 6 sur la branche prod (commit `3749151`, repo houetor)
+- `app/mcp/tools.ts` : description `get_page_blocks` alignée sur le miroir lab (4 champs parent_ref/depth/has_children/child_count).
+- `app/mcp/error-translator.ts` : 3 cas 2.8.0 (conteneur écriture/batch, 404 imbriqué, conteneur transform) + en-tête v2.8.0.
+- Preuves : diff miroir lab ↔ prod = **vide** (fichiers identiques) ; `tsc --noEmit` 0 erreur ; `eslint` 0 erreur sur les 2 fichiers. `dispatch.ts`/`route.ts`/`parser.ts` intacts.
+
+### #5/#7 — Zip officiel 2.8.0 (commits `0129edd` + `4f81b0d`)
+- Construit par `git archive` (WSL) depuis le HEAD du lab. **Diff vs zip 2.7.0 (extraction + diff -rq)** : exactement 3 fichiers modifiés (`houetor-connect.php` version, `class-block-editor.php` patch, `readme.txt` changelog) + 11 fichiers de test ajoutés, 0 retrait ; md5 `class-block-editor.php` = `1bb175a5…` ; readme.txt déjà à jour (stable tag 2.8.0 + changelog imbriqué).
+- Zip régénéré une 2e fois après la rotation token (voir plus bas) → `4f81b0d`.
+
+### #15 — Suite de tests 1 commande : `houetor-connect/tests/test-suite.sh` → **19/19 PASS, exit 0** (2 runs)
+- Couvre : 8 batteries `wp eval-file` + 3 harnesses standalone + MCP (vitest 42 + integration 52 + scenarios 41).
+- Fonctionnalités : restauration des pages AVANT chaque batterie (c'était la cause du 20/1 transform au run 1 : état de page altéré par la batterie précédente — réglé, 21/21 ensuite), reset rate limit, relance auto du serveur WP (systemctl), timeouts sur les batteries MCP, critère de réussite par batterie (bilan « X PASS / 0 FAIL », « IDENTIQUE », « FIN V2 », « TOUS LES TESTS PASSENT », « 35 PASS / 0 FAIL »).
+- Preuve du run final : `outputs/test-suite-run4.log` (19 PASS / 0 FAIL, pages restaurées en fin).
+
+### 🔴 Sécurité — Fuite de token corrigée (rotation + batteries dynamiques)
+- **Découvert** : le token WP lab (`eHlibQROp3fU00hrR8EFJqJJ0cuM9pJy`) était **hardcodé dans 4 batteries commitées dans le repo public** (rest-test.php, v2, v3, structural) et dans `ONBOARDING.md`. Vérifié : `get_option('hwc_token') == littéral` → SAME.
+- **Fix** : les 4 batteries lisent désormais `get_option('hwc_token', '')` (commit `2ff7421`), `ONBOARDING.md` nettoyé ; **rotation du token du WP lab** (nouvelle valeur 32 car. jamais affichée — `ROTATED len=32 old_matches=no`) → l'ancien littéral est révoqué ; vérif `eHlib` = 0 occurrence dans le lab ET dans le zip reconstruit.
+- **Mystère résolu au passage** : `test-connect.php` en CLI ne sortait RIEN (0 octet, exit 0) → cause : `class-hwt-parser.php:2` et `class-connect-status.php:2` ont le guard `defined('ABSPATH') || exit;` → nouveau wrapper `test-connect-run.php` définit ABSPATH avant include → **35 PASS / 0 FAIL** (4628 octets de sortie).
+
+### Conclusion
+Le serveur MCP est prêt à merger (Étape 6 portée et alignée miroir = prod), le zip 2.8.0 est livrable (sans fuite de token), et la validation de référence est désormais 1 commande (`test-suite.sh` 19/19). Restent dépendants de l'utilisateur : merge `mcp-block-crud-2.7.0` → main + déploiement Vercel + E2E contre le serveur déployé + dossier Fix Day 2.8.0 + packaging selfhare 1.0.3 + décisions artefacts. Suivi complet : `ROADMAP_MARKET.md`.

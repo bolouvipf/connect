@@ -424,3 +424,21 @@ Relance du serveur WP lab si tombé : `wsl -u root -e bash -c "systemctl restart
 | **6 — Wrapper MCP portage** | ✅ commit `0aa53d5` : `portage-app-mcp/src/tools.ts` (description get_page_blocks alignée `src/tools.ts:29`, 4 champs) + `error-translator.ts` (3 cas 2.8.0 : conteneur écriture/batch, 404 imbriqué, conteneur transform) ; `dispatch.ts` inchangé (pass-through REST → champs du plugin) ; **tsc 0 erreur miroir + portage** |
 
 **Pour reprendre** : Section 27 exécutée de bout en bout (Exp 031 documenté dans EXPERIMENTS_LOG, commits `c18aa1d` + `0aa53d5` + docs poussés). Note run MCP : wrapper `run-integration.sh` supprime le helper token → **recopier `hwc-get-token.php` dans `/tmp` avant chaque run** ; scenarios = reset rate limit (`wp option delete _transient_hwc_ratelimit_2`) ; `/tmp` WSL ne survit pas entre invocations (`wsl` s'arrête). Fils ouverts inchangés : portage prod selfhare 1.0.3, merge/rollout `mcp-block-crud-2.7.0`, dossier 2.7.0 connect Fix Day, lint global (62), roadmap. Probes `probe-*.mjs` + `outputs/` restent untracked/écartés.
+
+## ROADMAP MARCHÉ LANCÉE — Session 2026-08-05 (Exp 031 bis : portage prod Étape 6, zip 2.8.0, suite 1 commande, rotation token)
+
+**Mission** : l'audit « qu'est-ce qui bloque la mise sur le marché » (serveur MCP non mergé/déployé, connect zip 2.7.0, selfhare 1.0.3 non packagé, token statique, pas de CI) a donné lieu à un **plan validé par l'utilisateur** : `docs-learning/ROADMAP_MARKET.md` (19 items P0→P3). Démarrage des tâches à dépendance nulle.
+
+| Élément | État |
+|---|---|
+| **#1 Portage Étape 6 sur branche prod** | ✅ commit `3749151` (repo houetor, `mcp-block-crud-2.7.0`, poussé) : `app/mcp/tools.ts` (get_page_blocks 4 champs) + `app/mcp/error-translator.ts` (3 cas 2.8.0) ; diff miroir lab↔prod = **vide** ; tsc 0 erreur ; eslint 0 |
+| **#5 Zip officiel 2.8.0** | ✅ `git archive` depuis HEAD lab ; diff vs zip 2.7.0 = 3 fichiers modifiés (houetor-connect.php, class-block-editor.php, readme.txt) + 11 tests ajoutés, 0 retrait ; md5 class-block-editor `1bb175a5…` ; commits `0129edd` puis `4f81b0d` (régénéré après rotation) dans `houetor/outputs/` |
+| **#7 readme.txt** | ✅ déjà à jour (stable tag 2.8.0 + changelog 2.7.0/2.8.0 imbriqué) |
+| **#15 Suite 1 commande** | ✅ `houetor-connect/tests/test-suite.sh` → **19/19 PASS, exit 0** (2 runs ; preuve `outputs/test-suite-run4.log`) : 8 batteries wp eval + 3 harnesses + MCP (vitest 42, integration 52, scenarios 41) ; restauration pages AVANT chaque batterie (causait le 20/1 transform au run 1) ; relance serveur auto ; timeouts ; critère par batterie (bilans + marqueurs IDENTIQUE/FIN V2/RETENTION) |
+| **🔴 Rotation token** | ✅ `eHlibQROp3fU00hrR8EFJqJJ0cuM9pJy` hardcodé dans 4 batteries commitées + ONBOARDING.md et ÉGAL au vrai token WP (SAME vérifié) → **token WP roté (32 car., jamais affiché, l'ancien est révoqué)** ; batteries en `get_option('hwc_token','')` ; ONBOARDING.md nettoyé ; commit lab `2ff7421` (non poussé) ; vérif `eHlib` = 0 occurrence (lab + zip extrait) |
+| **🐛 test-connect silencieux résolu** | ✅ guard `defined('ABSPATH') || exit;` (class-hwt-parser.php:2, class-connect-status.php:2) tuait la CLI → wrapper `test-connect-run.php` (ABSPATH stub) → **35 PASS / 0 FAIL** (4628 octets) |
+| **Commits prod poussés** | ✅ `3749151` (portage) + `4f81b0d` (zip 2.8.0 propre) sur `mcp-block-crud-2.7.0` ; main houetor intact |
+
+**⚠️ IMPORTANT — fuite corrigée dans le repo PUBLIC** : le littéral `eHlib…` ne doit JAMAIS réapparaître (il identifiait le token WP lab révoqué). Vérification de non-régression = `grep eHlib` → 0 partout.
+
+**Pour reprendre** : (1) **push lab en attente** : commit `2ff7421` (token dynamique + test-connect-run.php + test-suite.sh + ONBOARDING.md) + docs Exp 031 bis (EXPERIMENTS_LOG, LEARNING_STATE, AGENTS.md, ROADMAP_MARKET.md) → `opencode-learning` ; (2) puis décisions utilisateur : merge `mcp-block-crud-2.7.0` → main houetor (#2), déploiement Vercel (#3), E2E contre serveur déployé (#4), dossier Fix Day 2.8.0 (#6), packaging selfhare 1.0.3 version unique (#8/#9), artefacts Fix Day (#10) ; (3) chantiers lab proposables : #11 compte agent moindre privilège, #12 rate limit global, #14 lint 62, #16 PHPUnit. Probes `probe-*.mjs` + `outputs/` untracked (écartés). Secrets en stock (jamais commités) : `.env.learning` (lab) + `.env.local` (houetor).
