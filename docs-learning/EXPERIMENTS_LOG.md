@@ -840,6 +840,7 @@ Le serveur MCP est prêt à merger (Étape 6 portée et alignée miroir = prod),
 - **Migration additive** `supabase/migrations/20260806_p1_billing_cycle.sql` : `billing_cycle_status` (active|past_due|expired|canceled, CHECK), `next_billing_at`, `renewal_failure_count`, `last_renewal_attempt_at`, `provider_subscription_id` sur `orders` + `houetor_selfhare_licenses` + 2 index partiels. ⚠️ **Non appliquée à la DB** (pas d'accès aux secrets) — prête au déploiement.
 - **`lib/payment/billing.ts`** (cœur, client injecté — testable) : `onPaymentSucceeded` (**Règle 32** : `maxIso` — jamais diminuer `next_billing_at` ; FedaPay sans periodEnd → +1 mois), `onPaymentFailed` (depuis active OU past_due → past_due + compteur+1 ; expired/canceled bloqués — corrigé pendant les preuves), transitions 48h→past_due / 7j→expired, cooldown envoi 20h, `createRenewalPaymentLink` (metadata `renewal=1` + `provider_subscription_id`), `getUserBillingStatus` (par `customer_email` d'abord, fallback `user_id` — les checkouts créent des orders avec `user_id: null`).
 - **Webhooks** : Stripe SelfHare étendu (`invoice.payment_succeeded/failed`, `customer.subscription.deleted/updated`, routage `source:'hare'` → `insertHareOrder` **idempotent** — le webhook Stripe n'existait que pour SelfHare avant) ; FedaPay Hare (`app/api/payment/webhook/route.ts`) + SelfHare : branche renouvellement AVANT idempotence/création. Métadonnées `source:'hare'/'selfhare'` ajoutées aux checkouts.
+- **⚠️ Constat webhook (PREUVE 4 P1)** : **Webhook Stripe non testé en conditions réelles — à valider lors du premier renouvellement client réel.** Aucun webhook réel n'a pu être déclenché en prod : aucun client n'a encore de cycle de renouvellement actif (les renewals FedaPay reposent sur le cron + lien par email, les subscriptions Stripe natives ne sont pas encore souscrites). Les transitions grâce/expiration et le routage webhook sont couverts par les tests unitaires (`p1-billing-cycle.test.mjs` 24/24), pas par un événement réel Stripe/FedaPay.
 - **Cron** `app/api/cron/billing-recurring/route.ts` (Vercel `0 8 * * *`, CRON_SECRET) : lignes dues (`billing_cycle_status IN active,past_due`), calcul montants via HARE_PRICES/SELFHARE_PRICES, emails Resend (renouvellement + grâce), transitions 48h/7j. Stripe skippé (piloté webhook).
 - **Coupure d'accès (Règle 31)** : expired/canceled → refus dans `dispatch.ts` (MCP+agent), `app/agent/route.ts` (403, import dynamique), `app/selfhare/relay/route.ts` (`billing_cycle_status ?? status`).
 - **Page** `/espace/facturation` (statut, échéance, 3 derniers paiements, bouton past_due/expired) + `POST /api/payment/renew` (« Payer maintenant ») + entrée Sidebar.
@@ -915,3 +916,18 @@ Le serveur MCP est prêt à merger (Étape 6 portée et alignée miroir = prod),
 
 ### Pour reprendre
 Étude close, aucune décision. Prochaine étape possible : choix utilisateur (A/B/C), éventuel test d'une vraie page Elementor pour capturer le schéma réel de `_elementor_data` (ex. site de test), puis documentation PLUGIN_CAPABILITIES si option retenue. Fils ouverts inchangés : merge `mcp-block-crud-2.7.0` → main, P1 migration DB, artefacts Fix Day #10, lint global (62), README marché.
+
+## Exp 036 — Audit Règle 24 (distribution SelfHare) — 07/08/2026
+
+**Objectif** : vérifier que `houetor-selfhare.zip` en circulation contient bien les 8 correctifs sécurité Exp 017 (CAS, rate limit, licence chiffrée, tokens preview, uninstall, traductions erreurs).
+
+**Résultat** :
+- `houetor/main` commit `010093c` = 1.0.3 — **8/8 fichiers conformes ✅** (MD5 `8E60FE23D033968187D8A2858BEEEC9E` ; marqueurs vus : `cas_write` L71 + rate limit + `openssl_encrypt` AES-256-CBC + `previewToken`/`tc.preview_token` + `edit_conflict`/`preview_required`/`find_text_not_found` + 6 `delete_option`/`remove_role` + `filemtime` + `Version: 1.0.3`/`Stable tag: 1.0.3`)
+- `connect/outputs/` local = 1.0.2 (non versionné, dossier entier `?? outputs/`) — **8/8 fichiers conformes ✅** (MD5 `14D7448FC682DA4A2470B2E3B2B20957` ; mêmes marqueurs, versions `1.0.2`) — antérieur au restyle, pas le « restyle sans correctifs » redouté en Section 27 §5
+- MD5 houetor : `8E60FE23D033968187D8A2858BEEEC9E`
+- MD5 lab : `14D7448FC682DA4A2470B2E3B2B20957`
+- Scénario danger (restyle sans Exp 017) : **non confirmé** — aucun des deux zips ne correspond.
+- Seul zip à distribuer : `houetor/main` `outputs/houetor-selfhare.zip` (1.0.3, commit `010093c`).
+- Zip lab 1.0.2 : ne pas distribuer (antérieur), ne pas supprimer (référence de version intermédiaire).
+
+**Règle 24 : statut CONFORME au 07/08/2026.**
