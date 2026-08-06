@@ -870,3 +870,48 @@ Le serveur MCP est prêt à merger (Étape 6 portée et alignée miroir = prod),
 - **P1** : appliquer la migration `20260806_p1_billing_cycle.sql` sur la DB Supabase (décision + accès), merge/déploiement branche `section28/p1-paiement-recurrent`, restent onboarding guidé + dashboard stats/facturation (BLOQUEUR §9.17 partiellement levé).
 - **Bug #12 suite (optionnelle)** : test Révisions (bug #7) + `Outils → SelfHare Journal` sur Fix Day.
 - **Docs** : cette expérience à pousser sur `opencode-learning` (avec les mises à jour `HOUETOR-selfhare-consolide-juillet2026.md` §7/§8/§9, `LEARNING_STATE.md`, `README.md`). Fils ouverts inchangés : merge `mcp-block-crud-2.7.0` → main, déploiement Vercel, lint global (62), README marché (#17/#18), restauration « Insights & Resources » Blog #13.
+
+## Exp 035 — ÉTUDE COMPATIBILITÉ ELEMENTOR : nos plugins sont-ils capables de CRUD des blocs Elementor ? (2026-08-06)
+
+**Mission utilisateur** : étude SANS TOUCHE AU CODE — (1) vérifier si l'actuel (connect 2.8.0 + selfhare 1.0.3 + MCP, qui savent créer/modifier des blocs Gutenberg existants, innerBlocks inclus, et les blocs créés par nos 2 plugins dans `houetor/outputs/`) peut ajouter/CRUD des blocs créés avec Elementor ; (2) consulter en premier notre traitement des innerBlocks (patch 2.8.0) pour savoir s'il résout le problème ; (3) références lues : aishan-shrestha/elementor-custom-widget, elementor/elementor-hello-world, developers.elementor.com/docs/widgets/, developers.elementor.com/docs/getting-started/first-addon/ + recherches en ligne ; (4) dire ce qui est possible.
+
+### Verdict : INCAPABLES AUJOURD'HUI — notre mécanique innerBlocks ne résout pas le problème (3 raisons)
+
+**Preuve code (connect 2.8.0)** : toutes les écritures passent par `parse_blocks`/`serialize_blocks` (class-block-editor.php:19,354,381,415...) et le CAS est `md5($post->post_content)` (L250) ; refs HWC = commentaires HTML dans post_content. **Selfhare** : idem (class-agent-dispatch.php:462,771,880,925, `cas_write` sur post_content). **MCP prod** : 38 tools dont 12 tools bloc, tous proxy `houetor/v1` → même limite. `_elementor_data` : 0 occurrence dans les 2 plugins.
+
+**Modèle de données Elementor (docs officielles developers.elementor.com/docs/data-structure/ + widget-element + container-element + recherches en ligne)** :
+- Contenu stocké en méta `_elementor_data` (wp_postmeta) = arbre JSON d'éléments `{id, elType: container|section|column|widget, widgetType, settings{}, elements[]}` ; page = 1 tableau JSON d'éléments racine.
+- `post_content` d'une page Elementor = vide ou placeholder → **Elementor IGNORE post_content au rendu** (études externes : modifier post_content ne fait rien de visible et peut faire disparaître « Edit with Elementor »).
+- Écriture programmatique : `wp_slash(wp_json_encode(...))` **obligatoire** (sinon JSON corrompu → page réduite à un bloc texte), validation structure, backup + rollback, **flush cache CSS** (`_elementor_css`) après écriture.
+- Révisions WP ne protègent PAS `_elementor_data` (Elementor a ses propres drafts) → notre rollback révision actuel ne couvre pas Elementor.
+- 2 modes : containers flexbox (défaut Elementor 3.x) et sections/columns legacy ; templates `elementor_library` (header/footer/popups = Pro).
+- Les 4 références fournies (custom-widget, hello-world, widgets/, first-addon/) = création d'addons/widgets (déclarer des types de widgets), PAS du CRUD de contenu de page.
+
+**Les 3 raisons du NON (analyse du patch innerBlocks 2.8.0)** :
+1. **Blocage EN AMONT** : `get_page_blocks` abandonne sur contenu vide/template (class-block-editor.php:15-17) — la mécanique innerBlocks n'est jamais atteinte sur une page Elementor (post_content vide).
+2. **Chemin d'écriture incompatible** : nous mutons `innerHTML` + `serialize_blocks` (L402-415) ; Elementor mute `settings` + sauvegarde JSON (wp_slash). `serialize_blocks` sur une page Elementor = markup Gutenberg ignoré au rendu.
+3. **Refs** : HWC = commentaires injectés par nous (extract_hwc_ref L80-86) → pages Elementor toutes `ref:null` (cas déjà connu, ciblage par index OK — prouvé réel Exp 032/033) ; MAIS Elementor fournit déjà un `id` unique 8-car hex par élément = meilleur équivalent de ref, sans injection.
+
+### Ce qui SE TRANSFÈRE (la forme de l'arbre est analogue)
+
+| Notre mécanique | Transfert vers Elementor |
+|---|---|
+| `flatten_blocks_recursive` (index global, parent_ref, depth, child_count — L43-74) | ✅ tel quel sur le JSON (`elements` ≡ `innerBlocks`) |
+| `locate_block_deep` (récursion par référence, index global dynamique, AUCUN index hardcodé — L321-344) | ✅ tel quel (counter indépendant de parse_blocks) |
+| Refus conteneur actionnable (L398-400) | ✅ (container/section = conteneur ; widget = feuille) |
+| `cas_check` md5(post_content) (L246-251) | ✅ md5(_elementor_data), même principe |
+| `serialize_blocks` + écriture post_content | ❌ → `wp_slash(wp_json_encode($elements))` sur la méta |
+| Ref HWC (commentaires) | ❌ → `id` Elementor (déjà présent) |
+
+**Conclusion** : notre mécanique innerBlocks résout déjà la navigation/adressage d'un arbre de profondeur quelconque (socle réutilisable) ; il manque la couche d'entrée (`_elementor_data` au lieu de parse_blocks) et la couche de sortie (settings + JSON + flush CSS au lieu de serialize_blocks).
+
+### Ce qui serait possible (options, aucune décidée)
+
+- **A (mini, lecture)** : détecter `_elementor_edit_mode=builder` et renvoyer l'arbre aplati dans get_page_blocks (même forme 2.8.0) → l'agent « voit » sans rien casser.
+- **B (CRUD complet)** : module Elementor dans connect (routes `houetor/v1/elementor/*` : get tree, create/update/delete/duplicate/move element, CAS, dry_run, audit, rate limit, révisions) + schéma des settings par widget (`\Elementor\Plugin::$instance->widgets_manager->get_widget_types()->get_controls()`) + flush CSS + backup/rollback. Risque principal : schéma des widgets (clés de settings propres à chacun) et non-régression.
+- **C** : ne rien faire, déclarer Elementor non supporté.
+
+**Preuves externes de faisabilité** : `msrbuilds/elementor-mcp` (GPL-3.0, ~360 ⭐, 97 tools — wrapper `\Elementor\Plugin::$instance->documents->get()->save()`, jamais de méta brute, factory d'éléments ids hex uniques, schéma depuis les controls, tools containers/widgets/templates) ; `bvisible/elementor-mcp-api` (REST + MCP : `/page/{id}/element`, PATCH settings, duplicate/move, `/flush-css`) ; pattern `safe_elementor_save` (backup timestamppé + validation + rollback, ~15 000 saves sans corruption — harborsoftware.com). Aucun code touché (règle respectée).
+
+### Pour reprendre
+Étude close, aucune décision. Prochaine étape possible : choix utilisateur (A/B/C), éventuel test d'une vraie page Elementor pour capturer le schéma réel de `_elementor_data` (ex. site de test), puis documentation PLUGIN_CAPABILITIES si option retenue. Fils ouverts inchangés : merge `mcp-block-crud-2.7.0` → main, P1 migration DB, artefacts Fix Day #10, lint global (62), README marché.
