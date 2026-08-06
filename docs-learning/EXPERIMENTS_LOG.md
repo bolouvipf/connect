@@ -931,3 +931,37 @@ Le serveur MCP est prêt à merger (Étape 6 portée et alignée miroir = prod),
 - Zip lab 1.0.2 : ne pas distribuer (antérieur), ne pas supprimer (référence de version intermédiaire).
 
 **Règle 24 : statut CONFORME au 07/08/2026.**
+
+## Exp 037 — Bug #12 SelfHare rejoué : placeholder « #{{selected_page.id}} » — CAS C, aucun bug dans le code (07/08/2026)
+
+**Mission** : re-diagnostic Bug #12 (placeholder littéral `#{{selected_page.id}}` dans l'UI au lieu d'un ID numérique, plugin actif 1.0.3 sur Fix Day). Hypothèse actée : cache navigateur (pattern bug #5, `?ver=` jamais incrémenté). 3 cas prévus (A = version statique → filemtime ; B = JS buggé → corriger l'interpolation ; C = rien d'anormal → documenter + signaler, ne pas corriger à l'aveugle).
+
+**Sorties brutes Étape 1 (repo houetor, branche `section28/p1-paiement-recurrent`) :**
+```
+grep wp_enqueue_script.*admin-chat → houetor-selfhare.php L162 :
+  wp_enqueue_script('houetor-selfhare-admin', HOUETOR_SELFHARE_URL . 'assets/admin-chat.js',
+    ['jquery'], filemtime(plugin_dir_path(__FILE__) . 'assets/admin-chat.js'), true);
+  → version DÉJÀ dynamique (filemtime) — Cas A écarté.
+
+grep '{{' dans assets/admin-chat.js → 0 occurrence.
+grep selected_page → 1 seule occurrence, L216 : selected_page: $pageSelect.val() || ''
+  (envoi au backend, pas une interpolation UI).
+grep '{{' dans tous les *.php du plugin (houetor-selfhare.php + includes/*) → 0 occurrence.
+Interpolation réelle des IDs dans describeToolCall (JS source actuel) :
+  L59  if (p.page_id) parts.push('#' + p.page_id);
+  L72  if (p.post_id) parts.push('#' + p.post_id);
+  L82  if (p.revision_id) parts.push('#' + p.revision_id);
+  L86  if (p.page_id) parts.push('de la page #' + p.page_id);
+  → mécanisme correct en place, aucun placeholder {{...}} dans le code.
+Version source : houetor-selfhare.php L7/L26 = 1.0.3, readme.txt L6 Stable tag: 1.0.3.
+```
+
+**Preuve HTTP fraîche (artefact `bug12-prove-a-http.mjs` rejoué le 07/08/2026 sur Fix Day) :**
+```
+URL script servi : admin-chat.js?ver=1785968077
+URL css servi   : admin-chat.css?ver=1785968077
+ver est un filemtime (timestamp) : OUI ✓
+PREUVE A : cache-busting filemtime actif sur le site réel — cause racine Bug #12 corrigée
+```
+
+**Verdict : CAS C — aucune correction de code** (pas de bump 1.0.4, pas de zip, pas de commit houetor ; la branche reste sur `bee2abc`). Le placeholder `#{{selected_page.id}}` n'existe dans AUCUN fichier du plugin 1.0.3 (source repo + zip) : c'est un vieux `admin-chat.js` servi par le **cache navigateur** du client (version antérieure à la rotation filemtime). Confirme la clôture Exp 034 §4 (0 occurrence source + preuve visuelle Playwright 6/6). Remède pour un client qui verrait encore le placeholder : **hard reload (Ctrl+F5) ou vidage du cache navigateur** — pas de déploiement à faire.
