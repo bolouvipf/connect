@@ -132,19 +132,19 @@ Chaque bug ci-dessous a été confirmé par preuve brute (grep sur le code sourc
 | 9 | Aperçu Avant/Après vide alors que le contenu allait réellement changer (action confirmée "à l'aveugle" une fois) | `compute_preview()` case `update_content` ne simulait jamais `find_text`/`replace_text` avant de construire le diff, contrairement à l'exécution réelle | Simulation ajoutée dans l'aperçu, + erreur explicite si le texte cherché est introuvable | ✅ corrigé |
 | 10 | "Modifier un page #TESTPAGE" puis "Contenu introuvable" | Le `<option value="...">` du sélecteur de page utilisait le **titre**, pas l'ID numérique | Nouvelle classe `Houetor_SelfHare_Page_Cache` (cache ID+titre, rafraîchi à l'activation/save/delete), dropdown corrigé | ✅ corrigé |
 | 11 | Même symptôme persistant après le fix #10 | Claude repassait le **nom** de la page ("TESTPAGE") en paramètre `id` du fallback `find_text`/`replace_text`, au lieu de réutiliser l'ID numérique (53) déjà résolu par `get_page_blocks` — comportement du modèle, pas un bug de code pur | Filet serveur dans `route.ts` : écrase `toolCall.params.id` avec `selected_page` pour toute action `create/update/delete_pages/posts`, quelle que soit la valeur envoyée par Claude | ✅ corrigé |
-| 12 | **"Action proposée : Modifier un page #{{selected_page.id}}"** — placeholder littéral non interpolé | **Cause non confirmée.** Recherche exhaustive (`grep -rn "{{"` sur tout le dépôt) ne trouve aucune syntaxe de template `{{...}}` nulle part dans le code. Hypothèse la plus probable : cache navigateur servant une ancienne version d'`admin-chat.js` — pattern déjà documenté dans l'addendum (bug #5, `?ver=1.0.1` jamais incrémenté) | **Non appliqué.** Dernière action en attente : vérifier le paramètre de version dans `wp_enqueue_script()` pour `admin-chat.js`, et vider le cache navigateur / DevTools réseau pour confirmer | ⚠️ **NON RÉSOLU — point de reprise immédiat de la prochaine session** |
+| 12 | **"Action proposée : Modifier un page #{{selected_page.id}}"** — placeholder littéral non interpolé | **Cause confirmée (2026-08-06, Exp 034)** : le littéral `{{...}}` ne venait PAS du code courant — recherche exhaustive `{{` sur le code, le zip et la source = 0 occurrence. Le serveur servait un **vieux `admin-chat.js` en cache navigateur** : l'enqueue utilisait une version **statique** (jamais incrémentée, pattern bug #5), donc aucun cache-busting. | **RÉSOLU (2026-08-06)** : version d'enqueue passée en **`filemtime()` dynamique** (`houetor-selfhare.php` L161-162, présent dans le zip 1.0.3 ET la source repo) + **preuve HTTP réelle** sur Fix Day (`admin-chat.js?ver=1785968077` = timestamp servi) + **preuve visuelle Playwright 6/6** (chat chargé, sélecteur à ID numériques, proposition d'action avec `page #5`/`index 4`/`page_id:"about"`, 0 `{{` dans le rendu et le DOM, 0 exécution sans confirmation) — **1re surface UI SelfHare testée visuellement** (détails : Exp 034 §4) | ✅ **RÉSOLU ET VÉRIFIÉ** |
 
 ---
 
 ## 8. POINT DE REPRISE IMMÉDIAT
 
-**Bug #12 est le seul non résolu.** Avant toute chose à la prochaine session :
+**Bug #12 RÉSOLU et vérifié (session 2026-08-06, Exp 034)** — les 4 étapes ci-dessous sont faites :
+1. ✅ `grep wp_enqueue_script.*admin-chat` : la version est **dynamique** (`filemtime(...)`), plus de constante fixe — dans le zip 1.0.3 en circulation ET la source repo.
+2. ✅ Rendu dépendant de `filemtime()` (aucune modification nécessaire — déjà en place).
+3. ✅ Preuve réelle sur Fix Day : `admin-chat.js?ver=1785968077` (timestamp) + test visuel Playwright (sélecteur « Modifier une page » → ID numérique réel affiché, `page #5`, `index 4` — aucun placeholder).
+4. ⏳ Reste (optionnel, §8 suite) : vérifier **Révisions** (bug #7 corrigé) et **Outils → SelfHare Journal** sur Fix Day, avec tous les fixes cumulés actifs — non refait à ce jour.
 
-1. `grep -n "wp_enqueue_script.*admin-chat\|admin-chat.js" houetor-selfhare/*.php houetor-selfhare/includes/*.php` — vérifier si le paramètre de version est une constante fixe (`'1.0.1'`) ou dynamique (`filemtime(...)`).
-2. Si constante fixe → la faire dépendre de `filemtime()` du fichier, comme suggéré dans l'addendum original pour le même type de bug.
-3. Vider le cache navigateur / forcer un rechargement (Ctrl+Shift+R) sur `confusedstamp.s6-tastewp.com/wp-admin`, puis refaire **un seul test complet** : sélecteur "Modifier une page" → page test → changement de texte → vérifier que l'action proposée affiche un **ID numérique réel**, pas un placeholder.
-4. Une fois confirmé : vérifier enfin **Révisions** (bug #7 corrigé) et `Outils → SelfHare Journal` sur ce test, pour la première fois avec tous les fixes cumulés actifs.
-**Restauration manuelle en attente (si pas encore faite) :** le texte "Insights & Resources" sur la page Blog (#13) de `confusedstamp.s6-tastewp.com`, perdu lors du bug #7, avant qu'un fix de révision n'existe.
+**Restauration manuelle toujours en attente (si pas encore faite) :** le texte "Insights & Resources" sur la page Blog (#13) de `confusedstamp.s6-tastewp.com`, perdu lors du bug #7, avant qu'un fix de révision n'existe.
 
 ---
 
@@ -152,7 +152,8 @@ Chaque bug ci-dessous a été confirmé par preuve brute (grep sur le code sourc
 
 ```
 IMMÉDIAT
-1. Bug #12 (cache admin-chat.js) — voir §8
+1. ✅ Bug #12 (cache admin-chat.js) — RÉSOLU + preuve visuelle (Exp 034 §4) ;
+   suite optionnelle : test Révisions (bug #7) + SelfHare Journal (§8)
 2. Restauration manuelle "Insights & Resources" sur page Blog #13 (si pas fait)
 3. Tester les blocs riches (cover, columns, image, button) — A.5, jamais fait,
    maintenant prioritaire puisque le cas simple est enfin fiable
@@ -161,7 +162,8 @@ IMMÉDIAT
    (SLH-starter-732251c8..., confusedstamp.s6-tastewp.com)
 
 COURT TERME — SelfHare
-6. Combler campagnes/cm_posts (aucun CRUD agent documenté)
+6. ✅ Combler campagnes/cm_posts — FAIT (Exp 034 §3, commit `951ad4e` :
+   6 outils create/update/delete_campagne + create/update/delete_cm_post)
 7. routines — aucun tool agent (mis de côté volontairement cette session)
 8. delete_block — à activer seulement après validation complète de
    get_page_history/revert_to_revision en conditions réelles
@@ -178,8 +180,10 @@ HÉRITÉ (23.13 / 19.4), TOUJOURS OUVERT
 
 BLOQUEUR PRINCIPAL, INCHANGÉ
 17. P1 — paiement récurrent auto + onboarding guidé + dashboard
-    stats/facturation — reste LE sujet non traité par cette session,
-    intact depuis la Section 19
+    stats/facturation — ⚠️ PAIEMENT RÉCURRENT FAIT côté code (Exp 034 §1,
+    branche `section28/p1-paiement-recurrent`, commits `122a043`+`951ad4e`) ;
+    restent onboarding guidé + dashboard stats/facturation + application
+    de la migration P1 sur la DB + merge/déploiement
 ```
 
 ---

@@ -74,13 +74,15 @@ Le dépôt sert aussi de **terrain d'apprentissage isolé** pour faire évoluer 
 
 ```
 IMMÉDIAT
-1. Résoudre le bug cache navigateur admin-chat.js (#12)
+1. ✅ Bug cache navigateur admin-chat.js (#12) — RÉSOLU (filemtime + preuve
+   visuelle Playwright 6/6, Exp 034 §4) ; suite : Révisions + SelfHare Journal
 2. Restaurer le contenu perdu "Insights & Resources" (page Blog #13)
 3. Tester les blocs riches (cover, columns, image, button)
 4. Nettoyer les lignes de test orphelines (Supabase)
 
 COURT TERME
-5. Paiement récurrent automatique + onboarding guidé
+5. ✅ Paiement récurrent automatique — code fait (Exp 034 §1) ; reste :
+   application migration DB + merge `section28/p1-paiement-recurrent`
 6. Dashboard stats et facturation
 7. wordpress.org + WhatsApp Business API
 
