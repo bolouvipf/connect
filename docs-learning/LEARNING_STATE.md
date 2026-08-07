@@ -513,3 +513,20 @@ Relance du serveur WP lab si tombé : `wsl -u root -e bash -c "systemctl restart
 | **Migration P1 en prod** | ✅ appliquée en prod Supabase `jseikgsdfjarozzshnxj` (10 colonnes confirmées sur orders + houetor_selfhare_licenses) — initialement listée « NON appliquée » (Exp 034), désormais FAIT |
 
 **Pour reprendre** : main houetor = `36f2108` (SEO déployé via Vercel, logs côté utilisateur) ; branches locales section28 supprimées ; restent `agents/code-explanation-request` + `mcp-block-crud-2.7.0` (référence locale zip 1.0.3, distante partie — zip officiel = main `010093c`). Lab : Exp 038 commité. Fils ouverts inchangés : merge `mcp-block-crud-2.7.0` → main, artefacts Fix Day #10, lint global (62), README marché (#17/#18), restauration « Insights & Resources » Blog #13, décision Elementor A/B/C (Exp 035).
+
+## SESSION 2026-08-07 (suite) — Elementor Option C livrée + merge → main (Exp 039, docs EXPERIMENTS_LOG)
+
+| Sujet | État |
+|---|---|
+| **Décision Elementor (Exp 035)** | ✅ **FIL FERMÉ — OPTION C actée par l'utilisateur** : pas de CRUD Elementor (Option B différée), erreur explicite à la place d'un résultat vide |
+| **Détection `_elementor_data`** | ✅ connect 2.9.0 : `get_page_blocks` L14-26, `update_block_content` L386-398, `batch_update_blocks` L477-489 ; selfhare 1.0.4 : `get_page_blocks` L766, `update_block_content` L889 — retour `{success:false, error:'elementor_not_supported', builder:'elementor'}` en tout début de fonction, avant toute lecture `post_content` ; jamais `[]`/`null` |
+| **MCP error-translator.ts** | ✅ cas `elementor_not_supported` avant le cas générique, pattern `{status, code, message}` identique aux autres codes |
+| **Test p3** | ✅ `scripts/test/p3-elementor-detection.test.mjs` : **9/9 PASS** (harness PHP WSL complété : mocks `wp_get_post_revisions`/`post_type_supports`/`get_post_type`/`clean_post_cache`/`$wpdb` + piège `\d`→`\\d` en template JS) |
+| **Régression** | ✅ p1-billing-cycle **24/24**, p2-crud-campagnes-cm **22/22** — 0 régression |
+| **Validations** | ✅ php -l 0 erreur ×4 (WSL 8.5.4) ; tsc --noEmit 0 erreur |
+| **Versions** | ✅ connect 2.8.0 → **2.9.0**, selfhare 1.0.3 → **1.0.4** (php + readme.txt, defines inclus) |
+| **Zips** | ✅ générés depuis l'arbre indexé (git write-tree — HEAD ne contenait pas `houetor-connect/`) : connect 37 entrées md5 `4B9D95F65FAD1C3C1D1B533CBF583880`, selfhare 24 entrées md5 `D32DD3EB8B4F081F4F0C32695AD8156D` |
+| **Commit + merge** | ✅ `0cafaa7` (branche `section28/elementor-detection`, 39 fichiers +6604/−3) → merge --no-ff **`d3fc419`** (Règle 28 levée explicitement, ort, sans conflit), push `36f2108..d3fc419 main -> main`, branche distante supprimée |
+| **⚠️ Anomalie structurale** | `houetor-connect/` n'avait JAMAIS été suivi par git dans le repo houetor (git ls-files = 0) → désormais suivi (plugin complet inclus dans le commit pour un zip valide) |
+
+**Pour reprendre** : main houetor = **`d3fc419`** (Elementor Option C en prod : connect 2.9.0, selfhare 1.0.4, zips à jour, `houetor-connect/` suivi par git). Lab : commit Exp 039 sur `opencode-learning`. Fils ouverts inchangés : merge `mcp-block-crud-2.7.0` → main, artefacts Fix Day #10, lint global (62), README marché (#17/#18), restauration « Insights & Resources » Blog #13. **FIL FERMÉ : décision Elementor A/B/C (Exp 035) → Option C livrée.**

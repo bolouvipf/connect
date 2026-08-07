@@ -987,3 +987,32 @@ PREUVE A : cache-busting filemtime actif sur le site réel — cause racine Bug 
 - **Aucun code touché** (CAS C).
 
 **Pour reprendre** : côté houetor — main à `36f2108` (SEO en prod après déploiement Vercel, logs utilisateur) ; branche locale `section28/p1-paiement-recurrent` supprimée ; restent `agents/code-explanation-request` + `mcp-block-crud-2.7.0` (non mergée dans main, distante partie, conservée localement comme référence zip 1.0.3 — attention : zip officiel = `010093c`/main). Lab — commit Exp 038 sur `opencode-learning`. Fils ouverts inchangés : merge `mcp-block-crud-2.7.0` → main, artefacts Fix Day #10, lint global (62), README marché (#17/#18), restauration « Insights & Resources » Blog #13, décision Elementor A/B/C (Exp 035).
+
+## Exp 039 — Détection Elementor Option C implémentée + merge → main : connect 2.9.0, selfhare 1.0.4 (07/08/2026)
+
+**Contexte** : Exp 035 (06/08) avait établi le diagnostic `_elementor_data` = 0 occurrence dans connect 2.8.0 et selfhare 1.0.3. Décision utilisateur **Option C actée** : quand `get_page_blocks` détecte une page Elementor, l'agent reçoit une **erreur explicite et actionnelle** (`elementor_not_supported`) plutôt qu'un résultat vide/corrompu. **Aucun support CRUD Elementor** (Option B différée), aucun nouveau fichier créé côté plugin.
+
+**1. État de départ (Règle 14 — pas le "propre" attendu)** : les détections étaient DÉJÀ écrites dans le working tree houetor (session précédente non commitée) ; `houetor-connect/` n'avait **jamais été suivi par git** dans le repo houetor (git ls-files = 0) — anomalie structurelle à retenir.
+
+**2. Détection Elementor (3 points connect, 2 points selfhare, avant toute lecture de post_content)** :
+- `houetor-connect/includes/class-block-editor.php` : `get_page_blocks` L14-26, `update_block_content` L386-398, `batch_update_blocks` L477-489 — retour `['success'=>false, 'error'=>'elementor_not_supported', 'message'=>…, 'builder'=>'elementor']`, jamais `[]`/`null`.
+- `houetor-selfhare/includes/class-agent-dispatch.php` : `get_page_blocks` L766, `update_block_content` L889 — message identique à Connect.
+- `app/mcp/error-translator.ts` : cas `elementor_not_supported` ajouté AVANT le cas générique de fin, même pattern `{status, code, message}` que les autres codes.
+
+**3. Test `scripts/test/p3-elementor-detection.test.mjs`** : harness PHP exécuté via WSL (php 8.5.4) — 9 checks (connect 3× avec + 3× sans ; selfhare 2× avec + 1× sans). **Harness complété au passage** (8/9 → 9/9) : mocks manquants `wp_get_post_revisions`, `post_type_supports`, `get_post_type`, `clean_post_cache`, mock global `$wpdb` (prepare/get_var/update), et **piège template JS : `\d` → `\\d`** dans les regex PHP (en JS `'\d'` vaut `'d'`, le regex ne matchait plus).
+```
+===== 9/9 PASS =====
+```
+Régression : `==== 24/24 PASS ====` (p1-billing-cycle), `==== 22/22 PASS ====` (p2-crud-campagnes-cm) — 0 régression.
+
+**4. Validations** : php -l 0 erreur ×4 (class-block-editor, class-agent-dispatch, houetor-connect.php, houetor-selfhare.php via WSL) ; tsc --noEmit 0 erreur. Versions : connect **2.8.0 → 2.9.0** (houetor-connect.php L7 + L20, readme.txt), selfhare **1.0.3 → 1.0.4** (houetor-selfhare.php L7 + L26, readme.txt).
+
+**5. Zips (Règle 29 — adaptation nécessaire)** : `git archive` sur HEAD aurait produit un zip vide (dossier jamais commité) → **générés depuis l'arbre indexé** (`git write-tree` → `git archive <tree>`), après `git add houetor-connect/` complet (le plugin entier, seul moyen d'avoir un zip de 38 fichiers valide — aucun fichier hors périmètre). Vérifié : connect 37 entrées (== zip 2.8.0 structure), selfhare 24 entrées, versions 2.9.0/1.0.4 et `elementor_not_supported` présents dans les zips.
+```
+MD5 connect : 4B9D95F65FAD1C3C1D1B533CBF583880
+MD5 selfhare: D32DD3EB8B4F081F4F0C32695AD8156D
+```
+
+**6. Commit + merge** : branche `section28/elementor-detection` → commit `0cafaa7` (39 fichiers, +6604/−3, 3 modifs réelles + intégration du plugin connect) → push OK. **Merge → main explicite utilisateur (Règle 28 levée)** : `d3fc419` `merge(section28): Elementor Option C — detection explicite, connect 2.9.0, selfhare 1.0.4 — 0cafaa7` (ort, sans conflit, 39 fichiers +6604/−3), push `36f2108..d3fc419 main -> main`, branche distante `- [deleted] section28/elementor-detection` (seule la locale résiduelle subsiste).
+
+**Pour reprendre** : côté houetor — main à `d3fc419` (Elementor Option C en prod : connect 2.9.0, selfhare 1.0.4, zips à jour, **houetor-connect/ désormais suivi par git**). **Fil fermé : décision Elementor A/B/C (Exp 035) → Option C livrée** (Option B différée, hors périmètre). Fils ouverts inchangés : merge `mcp-block-crud-2.7.0` → main, artefacts Fix Day #10, lint global (62), README marché (#17/#18), restauration « Insights & Resources » Blog #13. Lab — commit Exp 039 sur `opencode-learning`.
