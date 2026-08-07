@@ -502,3 +502,14 @@ Relance du serveur WP lab si tombé : `wsl -u root -e bash -c "systemctl restart
 | **Preuves externes** | `msrbuilds/elementor-mcp` (GPL-3.0, ~360 ⭐, 97 tools, wrapper `documents->get()->save()`) ; `bvisible/elementor-mcp-api` (REST `/page/{id}/element` PATCH/duplicate/move + `/flush-css`) ; pattern `safe_elementor_save` (~15 000 saves sans corruption) |
 
 **Pour reprendre** : étude close (EXPERIMENTS_LOG Exp 035), **aucun code touché**, décision utilisateur en attente (A/B/C). Fils ouverts inchangés : merge `mcp-block-crud-2.7.0` → main, P1 migration DB, artefacts Fix Day #10, lint global (62), README marché (#17/#18), restauration « Insights & Resources » Blog #13.
+
+## SESSION 2026-08-07 (suite) — merge P1 → main, SEO robots.txt + sitemap.ts, audit LCP landing (Exp 038, docs EXPERIMENTS_LOG)
+
+| Sujet | État |
+|---|---|
+| **Merge P1 → main** | ✅ décision explicite (Règle 28 levée) : revue 19 fichiers +1791/−7 sans fichier sensible, merge --no-ff ort → `73dd25b`, push `d2a587f..73dd25b` ; tsc 0 ; curl 307→200 (`www.houetor.com`) ; branche distante supprimée, locale supprimée ensuite (13/08) |
+| **SEO robots.txt + sitemap.ts** | ✅ branche `section28/seo-robots-sitemap`, commit `0b37e98` (fusion validée : config IA conservée + 8 Disallow /espace /admin /mcp /api /selfhare/relay /obtenir /commander /bureau ; sitemap 5 URLs : + /selfhare/plans + /commencer, − /obtenir ×4 − /commander) ; tsc/eslint 0 ; curl dev : robots.txt + sitemap.xml conformes ; merge autorisé → `36f2108`, push `73dd25b..36f2108`, branche supprimée ; déploiement Vercel + logs = utilisateur |
+| **Audit LCP landing** | ✅ écart non confirmé : visuels grille = images statiques WebP ×4 (16–37 KB, total ≈ 109 KB) via next/image lazy (PillarCard.tsx:49-57) ; LCP de `/` = h1 texte (HeroSection.tsx:48) ; aucun mockup/SVG généré en code ; aucun code touché ; vigilance : mockup en hero/priority = LCP mobile sensible (marché cible) |
+| **Migration P1 en prod** | ✅ appliquée en prod Supabase `jseikgsdfjarozzshnxj` (10 colonnes confirmées sur orders + houetor_selfhare_licenses) — initialement listée « NON appliquée » (Exp 034), désormais FAIT |
+
+**Pour reprendre** : main houetor = `36f2108` (SEO déployé via Vercel, logs côté utilisateur) ; branches locales section28 supprimées ; restent `agents/code-explanation-request` + `mcp-block-crud-2.7.0` (référence locale zip 1.0.3, distante partie — zip officiel = main `010093c`). Lab : Exp 038 commité. Fils ouverts inchangés : merge `mcp-block-crud-2.7.0` → main, artefacts Fix Day #10, lint global (62), README marché (#17/#18), restauration « Insights & Resources » Blog #13, décision Elementor A/B/C (Exp 035).

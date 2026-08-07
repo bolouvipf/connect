@@ -965,3 +965,25 @@ PREUVE A : cache-busting filemtime actif sur le site réel — cause racine Bug 
 ```
 
 **Verdict : CAS C — aucune correction de code** (pas de bump 1.0.4, pas de zip, pas de commit houetor ; la branche reste sur `bee2abc`). Le placeholder `#{{selected_page.id}}` n'existe dans AUCUN fichier du plugin 1.0.3 (source repo + zip) : c'est un vieux `admin-chat.js` servi par le **cache navigateur** du client (version antérieure à la rotation filemtime). Confirme la clôture Exp 034 §4 (0 occurrence source + preuve visuelle Playwright 6/6). Remède pour un client qui verrait encore le placeholder : **hard reload (Ctrl+F5) ou vidage du cache navigateur** — pas de déploiement à faire.
+
+## Exp 038 — Session 07/08/2026 : merge P1 → main, chantier SEO (robots.txt + sitemap.ts), audit LCP landing (07/08/2026)
+
+**1. Merge `section28/p1-paiement-recurrent` → main (décision explicite utilisateur, Règle 28 levée)** :
+- Revue pré-merge : 4 commits (122a043, 951ad4e, f0079d4, bee2abc), 19 fichiers +1791/−7, **0 fichier sensible**.
+- Merge --no-ff propre (stratégie ort) → `73dd25b` `merge(section28): P1 billing, CRUD campagnes/cm_posts, audit Regle 24 - bee2abc`, push `d2a587f..73dd25b main -> main`.
+- Vérifs post-merge : tsc 0 erreur ; curl houetor.com → HTTP 307 → 200 (`https://www.houetor.com`, domaine canonique).
+- Branche distante supprimée (`- [deleted] section28/p1-paiement-recurrent`), locale conservée puis supprimée après confirmation (13/08 — aucune étape ne la référençait plus).
+
+**2. Chantier SEO (branche `section28/seo-robots-sitemap`)** :
+- Contexte : `public/robots.txt` existait déjà (54 lignes, config IA GPTBot/ClaudeBot/Google-Extended/CCBot… + Crawl-Delay + Sitemap) mais **sans AUCUN Disallow** → `/espace`, `/admin`, `/mcp`, `/api`, `/selfhare/relay`, `/obtenir`, `/commander`, `/bureau` crawlables. `app/sitemap.ts` existait (8 URLs, dont `/obtenir` + `/obtenir/[profile]` que la mission voulait exclure ; sans `/selfhare/plans` ni `/commencer`).
+- Décision utilisateur (2 questions) : **fusion dans les deux cas** — garder la config IA + ajouter les 8 Disallow ; sitemap = 5 URLs (mission 3 + mentions-legales + confidentialite, `/commander` retiré car en Disallow — cohérence avec la note mission sur `/obtenir`).
+- Vérifs : tsc 0, eslint 0 ; serveur dev local → `curl /robots.txt` (8 Disallow, config IA conservée, Sitemap) ; `curl /sitemap.xml` (5 `<url>` : `/` 1.0, `/selfhare/plans` 0.8, `/commencer` 0.8, `/mentions-legales` 0.3, `/confidentialite` 0.3) ; grep : `plans-in-Disallow: False`, `commencer-in-Disallow: False`, `Disallow-root: False` ✅.
+- Commit `0b37e98` `feat(seo): robots.txt + sitemap.ts - routes sensibles protegees, pages publiques indexables` (2 fichiers, +14/−22).
+- **Merge → main autorisé (mission explicite)** : `36f2108` `merge(section28): SEO robots.txt + sitemap.ts - 0b37e98` (ort, 2 fichiers +14/−22), push `73dd25b..36f2108`, `- [deleted] section28/seo-robots-sitemap`. Pas de tsc/verifs supplémentaires demandés (déjà faits sur la branche) ; logs Vercel post-déploiement = côté utilisateur.
+
+**3. Audit LCP landing page (écart potentiel signalé par l'utilisateur)** :
+- Question : les « visuels d'interface (tableaux de bord, agents IA, maquettes d'écrans) » de la grille produits sont-ils des images statiques ou du code généré (SVG/mockup) risquant de ralentir le LCP mobile ?
+- **Verdict : images statiques WebP, aucun impact LCP** : `public/landing-assets/pillar-*.webp` ×4 (boutique-dashboard 29,1 KB, formations 37,4 KB, selfhare 26,5 KB, creation-web 16,3 KB — total ≈ 109 KB), servies via `next/image` (width/height fournis → 0 CLS, `sizes` correct, `loading="lazy"`, `object-cover` — PillarCard.tsx:49-57). LCP réel de `/` = h1 du hero (texte, HeroSection.tsx:48), halos = divs CSS blur (compositing GPU). Images grille sous le pli + lazy → jamais dans le chemin du LCP, même mobile lent. Point de vigilance futur : si un mockup entre dans le hero ou en `priority`, LCP mobile devient sensible (marché cible = réseau mobile).
+- **Aucun code touché** (CAS C).
+
+**Pour reprendre** : côté houetor — main à `36f2108` (SEO en prod après déploiement Vercel, logs utilisateur) ; branche locale `section28/p1-paiement-recurrent` supprimée ; restent `agents/code-explanation-request` + `mcp-block-crud-2.7.0` (non mergée dans main, distante partie, conservée localement comme référence zip 1.0.3 — attention : zip officiel = `010093c`/main). Lab — commit Exp 038 sur `opencode-learning`. Fils ouverts inchangés : merge `mcp-block-crud-2.7.0` → main, artefacts Fix Day #10, lint global (62), README marché (#17/#18), restauration « Insights & Resources » Blog #13, décision Elementor A/B/C (Exp 035).
