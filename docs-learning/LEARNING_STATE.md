@@ -557,3 +557,15 @@ ext build 20.0s - /aide statique |
 | **Reste (manuel)** | Visuel navigateur /aide (accordions, search, ouverture mailto) ; commit chantier Section 29 complet (onglets/emails/affiliation//aide) + push main (a la demande) ; click-through /onboarding authentifie ; envoi Resend reel |
 
 **Pour reprendre** : main houetor = d3fc419, commits Section 29 NON pousses (onboarding 8902170 + chantier onglets/emails/affiliation//aide) a committer. Lab : commit Exp 040 bis sur opencode-learning. Fils ouverts inchanges : merge mcp-block-crud-2.7.0 -> main, artefacts Fix Day #10, lint global (62), README marche (#17/#18), restauration "Insights & Resources" Blog #13.
+
+## SESSION 2026-08-08 (suite 2) - SECTION 29, Domino 4 : validation paiement FedaPay (Exp 040 ter, docs EXPERIMENTS_LOG)
+
+| Sujet | Etat |
+|---|---|
+| **Migration manquante 1** | **OK**. users.current_period_end absent de la base (20260618 jamais appliquee) -> webhook 500. SQL colle par l'utilisateur (SQL Editor) -> PRESENT |
+| **Migration manquante 2** | **OK**. houetor_selfhare_licenses.fedapay_transaction_id absent (20270715) -> webhook selfhare 500. Colle -> PRESENT |
+| **Test E2E paiement** | **OK**. scripts/test/s29-paiement-e2e-local.mjs **17/17 PASS** : webhook Hare (order 1k FCFA pending->active, users active +30j, gating /espace preserve), webhook SelfHare (licence active + idempotence), donnees E2E nettoyees (orders=0, users=0, licences=0) ; preuve out-s29-paiement-domino4.txt NON commitee ; commit d6ca692 |
+| **Anomalie checkout** | **FIL OUVERT**. routes create-fedapay-session inserent plan_type/plan_name/billing/customer_email absents du schema orders reel (offer_type/client_id/payment_provider/email...) -> checkout reel planterait. Aligner inserts sur schema reel |
+| **Cle FedaPay** | .env.local : FEDAPAY_SECRET_KEY **sk_live_** + FEDAPAY_WEBHOOK_SECRET wh_live_ (jamais commites, .gitignore OK). Classe de test sandbox impossible sans cle sk_sandbox_ (le code vise sandbox-api) |
+
+**Pour reprendre** : main houetor = d3fc419 + commits Section 29 NON pousses (8902170, 422758e, 21ed9f4, d6ca692). Reste : cle sandbox pour transaction reelle 1k FCFA (etape 1 du brief), alignement orders checkout (fil ouvert), RESEND_API_KEY pour emails, visuels navigateur (aide/affilies/onboarding). Lab : commit Exp 040 ter sur opencode-learning.

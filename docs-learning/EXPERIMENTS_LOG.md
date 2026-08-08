@@ -1070,3 +1070,25 @@ o-img-element = convention landing existante) ;
 ext build Compiled successfully 20.0s - /aide statique (o).
 
 **Pour reprendre** : main houetor = d3fc419 ; commits Section 29 NON pousses : 8902170 (onboarding) + chantier (onglets espace, emails, affiliation, /aide) a committer ensemble. Reste manuel : visuel navigateur /aide (accordions, search, mailto). Fils ouverts inchanges : merge mcp-block-crud-2.7.0 -> main, artefacts Fix Day #10, lint global (62), README marche (#17/#18), restauration "Insights & Resources" Blog #13.
+
+## Exp 040 ter - SECTION 29, Domino 4 : validation paiement FedaPay (08/08/2026)
+
+**Contexte** : brief validation paiement (avant J55) : 1) transaction test 1k FCFA sandbox 2) webhook -> log Supabase 3) orders.status='active' + licences billing_cycle_status='active' 4) acces /espace non coupe, preuve, fallback SLA manuel. .env.local : FEDAPAY_SECRET_KEY sk_live_ (LIVE, PAS sandbox) + FEDAPAY_WEBHOOK_SECRET wh_live_ ajoutes par l'utilisateur - jamais commites (.gitignore OK, NON tracke). FEDAPAY_ENV absent -> le code vise sandbox-api.fedapay.com -> **impossible de creer une vraie transaction sandbox avec une cle live** (et on ne doit pas creer de transactions live).
+
+**1. Deux migrations jamais appliquees a la base reelle** (decouvertes par le test - la base n'a AUCUN historique de migrations, pas de schema_migrations, pas de config.toml, pas de CLI/psql local) :
+- users.current_period_end (migration 20260618) : ABSENT de la base -> webhook 500 "Erreur mise a jour utilisateur" (update users.current_period_end echoue) -> l'order restait pending. Routes dependantes : webhook, check-status, cron/suspend-expired, admin/activate.
+- houetor_selfhare_licenses.fedapay_transaction_id (migration 20270715) : ABSENT -> webhook selfhare 500 internal_error a l'insert licence (colonne inconnue) ; idempotence/validate/generate dependantes aussi.
+- Correction : SQL colle par l'utilisateur dans le SQL Editor Supabase (identiques aux fichiers du repo) -> colonnes PRESENTES (verifie par schema cache).
+
+**2. Test E2E scripts/test/s29-paiement-e2e-local.mjs : 17/17 PASS** (serveur local 
+ext start -p 3111, donnees test prefixees E2E-<ts> puis NETTOYEES, preuve out-s29-paiement-domino4.txt NON commitee) :
+- Setup : user auth + order 1k FCFA pending (offer_type='starter' - valeur reelle de la contrainte ; la migration 20260614 dit default 'site_complet' mais les lignes reelles sont starter/pro) + billing_cycle_status='active' (default P1).
+- **Webhook Hare** : payload 	ransaction.approved signe HMAC-SHA256 (format reel FedaPay, x-fedapay-signature) -> HTTP 500 attendu (RESEND_API_KEY absent, email skip apres updates) MAIS base verifiee : users.subscription_status='active', users.current_period_end=+30j, orders.status='active', billing_cycle_status='active', studio_status='draft', current_period_end=+30j. **Gating /espace : acces NON coupe** (subscription_status=active).
+- **Webhook SelfHare** : licence starter creee status='active', billing_cycle_status='active', fedapay_transaction_id='E2E-SH-<ts>'. **Idempotence : re-post meme transaction -> 1 seule licence** (0 doublon).
+- Regression : p1-billing-cycle 24/24 (revalide a l'Exp 039).
+
+**3. Anomalie schema orders decouverte** : les routes checkout (create-fedapay-session hare + selfhare) inserent plan_type, plan_name, billing, customer_email qui **n'existent PAS** dans la vraie table orders (colonne reelles : client_id, offer_type, status, amount, currency, payment_provider, transaction_id, description, email, full_name, phone, company, ...). Le checkout reel FedaPay planterait a l'insert. **FIL OUVERT** : aligner les inserts checkout sur le schema reel (ou completer orders).
+
+**Limites de cette validation** : etape 1 du brief (transaction sandbox reelle) NON faite - cle live dans .env.local, impossible en sandbox sans cle sk_sandbox_. Emails Resend non testes (RESEND_API_KEY absent). Webhook reel FedaPay non recu (simulation locale avec la meme mecanique HMAC). Fallback SLA manuel (email d'activation) documente mais non execute.
+
+**Pour reprendre** : main houetor = d3fc419 + commits Section 29 NON pousses (8902170 onboarding, 422758e onglets/emails/affiliation/aide, 21ed9f4 aide sidebar, d6ca692 test paiement). Base corrigee (2 migrations appliquees). A faire : cle sandbox pour test transaction reel, alignement orders checkout (fil ouvert), RESEND_API_KEY pour emails. Fils ouverts inchanges : merge mcp-block-crud-2.7.0 -> main, artefacts Fix Day #10, lint global (62), README marche, Blog #13.
