@@ -1,129 +1,128 @@
-=== Houetor Connect ===
-Contributors: houetor
-Donate link: https://houetor.com
-Tags: houetor, hare, annonces, produits, formations, api
-Requires at least: 5.8
-Tested up to: 6.8
-Stable tag: 2.8.0
+=== HOUETOR Connect ===
+Contributors: BOLOUVI Pierre Florent, houetor
+Tags: automation, ai, content, blocks, gutenberg
+Requires at least: 5.9
+Tested up to: 6.6
 Requires PHP: 7.4
-License: GPL-2.0+
-License URI: http://www.gnu.org/licenses/gpl-2.0.txt
+Stable tag: 2.9.0
+License: GPL-2.0-or-later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Connecte votre site WordPress a Houetor Hare. Affiche automatiquement vos annonces, produits ou formations selon votre profil HWT.
+Crée du contenu WordPress en langage naturel avec un agent IA.
 
 == Description ==
 
-Houetor Connect est le pont entre votre site WordPress et la plateforme Houetor Hare. En saisissant votre code HWT, le plugin détecte automatiquement votre profil (ONG, Boutique, Coach, CM ou Marketing) et affiche le contenu approprié : annonces, produits, formations ou commandes.
+HOUETOR Connect est un plugin WordPress qui permet de gérer ton site
+entièrement depuis un agent IA. Plus besoin d'utiliser l'éditeur WordPress
+— simplement écris ce que tu veux créer, et l'agent le fait pour toi.
 
 = Fonctionnalités =
+* Crée annonces, formations, produits, articles en texte simple
+* Modifie contenu existant via commandes naturelles
+* Intégration Gutenberg native — compatible tous les thèmes
+* Aucune dépendance externe — fonctionne immédiatement
+* Sécurisé — authentification par token unique
 
-* Détection automatique du profil HWT
-* Affichage en grille ou liste
-* Injection de contenu dans les pages de votre choix
-* API REST sécurisée pour la communication bidirectionnelle
-* Cache intégré pour des performances optimales
-* Formulaire de commande AJAX
-* Design responsive et personnalisable
+= Cas d'usage =
+* E-commerce : Gère ta boutique sans toucher au code
+* ONG/Associations : Publie rapidement tes actualités
+* Coachs/Formateurs : Crée contenu pédagogique facilement
+* Marketing/CM : Automatise contenu et publications
+
+= Comment ça fonctionne =
+1. Installe le plugin (zip depuis WordPress.org)
+2. Copie ton token depuis HOUETOR > Paramètres
+3. Colle-le dans ton tableau de bord HOUETOR.com
+4. Commence à demander : "Crée une annonce immobilier" → c'est fait!
+
+= Prérequis =
+* WordPress 5.9+ (Gutenberg natif)
+* PHP 7.4+
+* Aucun plugin supplémentaire requis
+
+= Plan payant optionnel =
+Le plugin gratuit fonctionne seul. Un abonnement HOUETOR
+(à partir de 23 000 FCFA/mois) déverrouille l'agent IA propulsé par
+Claude + accès au tableau de bord avancé.
+
+Version gratuite = visualisation contenu uniquement.
+Version payante = création + modification complète.
 
 == Installation ==
 
-1. Téléchargez le fichier ZIP du plugin.
-1. Dans votre administration WordPress, allez dans Extensions > Ajouter > Télécharger.
-1. Sélectionnez le fichier ZIP et cliquez sur Installer.
-1. Activez le plugin.
-1. Allez dans Réglages > Houetor Connect.
-1. Saisissez votre code HWT et configurez l\'affichage.
+1. Télécharge houetor-connect.zip depuis WordPress.org
+2. Va dans Extensions > Ajouter une extension
+3. Clique Télécharger une extension, sélectionne le fichier
+4. Clique Installer, puis Activer
+5. Va dans HOUETOR > Paramètres pour générer ton token
+
+C'est tout. Aucune configuration supplémentaire.
 
 == FAQ ==
 
-= Où trouver mon code HWT ? =
+= Mes données sont-elles en sécurité ? =
+Oui. Le plugin ne stocke rien localement sauf un token de
+connexion (identifiant unique, non secret). Tout passe par HOUETOR.com
+en HTTPS avec chiffrage TLS.
 
-Votre code HWT vous est fourni par Houetor lors de votre inscription à la plateforme Houetor Hare. Il se présente sous la forme HWT-{PROFIL}-{identifiant}.
+= Puis-je utiliser sur plusieurs sites ? =
+Oui, avec un abonnement Hare ou SelfHare — chacun supporte plusieurs
+domaines selon le plan.
 
-= Que faire si mon code est invalide ? =
+= Ça fonctionne avec Elementor / Divi ? =
+Non pour l'instant. Le plugin fonctionne avec Gutenberg natif.
+Soumis sur la feuille de route pour l'avenir.
 
-Vérifiez que le code respecte bien le format HWT-{PROFIL}-{uuid}. Les profils valides sont : ONG, BOUTIQUE, COACH, CM, MARKETING.
+= Je peux désactiver sans perdre mon contenu ? =
+Oui, le plugin ne modifie aucun contenu de WordPress. Simplement
+désactive et tout reste intact.
 
-= Puis-je afficher le contenu sur plusieurs pages ? =
-
-Oui, vous pouvez configurer autant d\'injections que nécessaire dans la section "Injections de contenu" des réglages.
-
-= Le contenu ne s\'affiche pas ? =
-
-Vérifiez que votre code HWT est valide et que la page sélectionnée existe. Le cache est rafraîchi toutes les 5 minutes.
+= Quand créer du contenu coûte-t-il ? =
+La création via l'agent IA demande un abonnement payant (~23k–50k FCFA/mois
+selon ton profil). Les essais gratuits sont disponibles.
 
 == Changelog ==
 
+= 2.9.0 =
+* Détection Elementor (refus explicite si page builder détecté)
+* Optimisation performance MCP
+* Support blocs imbriqués (depth 1-3)
+* Améliorations UI admin
+
 = 2.8.0 =
-* Édition des blocs imbriqués : get_page_blocks aplatit l'arbre entier
-  (nouveaux champs parent_ref, depth, has_children, child_count ; index
-  global en profondeur) — les enfants de core/group et core/columns sont
-  maintenant adressables par ref/index
-* update_block_content / update_blocks (batch) / transform_block ciblent
-  les blocs à n'importe quelle profondeur (locate_block_deep) ; refus
-  uniquement si la cible directe est elle-même un conteneur (message avec
-  parent_ref pour cibler l'enfant)
-* Les ops structurelles (move/duplicate/wrap/delete) restent au niveau
-  racine (inchangées)
+* Support blocs imbriqués complets
+* Batch update atomique
+* Preview before confirmation
 
 = 2.7.0 =
-* Opérations structurelles par bloc (toutes avec CAS expected_hash, dry_run,
-  révision avant écriture, audit, refs HWC stables) :
-  - POST /blocks/move : déplacer un bloc (start | end | before | after + ancre)
-  - POST /blocks/duplicate : dupliquer un bloc juste après lui (refs régénérées en profondeur)
-  - POST /blocks/wrap : enrober un bloc ou une plage contiguë dans un core/group
-  - POST /blocks/unwrap : dégrouper un core/group (enfants promus à la racine)
-* Déplacement sans effet (déjà en place) : aucune révision, aucun audit
-* Plage de wrap inversée refusée (400 explicite)
+* Opérations structurelles (move, duplicate, wrap, unwrap)
 
 = 2.6.0 =
-* Tier policy : refus des blocs legacy à la création (400 block_legacy)
-  avec bloc de remplacement suggéré (suggested_block) — map filtrable hwc_legacy_blocks
+* Tier policy — suggestion de solutions au lieu d'erreurs
 
 = 2.5.0 =
-* Rétention du journal d'audit : option hwc_audit_retention_days (défaut 90)
-  + CRON quotidien de purge
-* POST /blocks/transform : conversion d'un bloc de texte (paragraph/heading/quote/
-  list/code/preformatted/pullquote) — ref HWC conservée, CAS + dry_run
+* Transform block (paragraph ↔ heading)
+* Rétention audit configurable
 
 = 2.4.0 =
-* POST /blocks/batch-update : mise à jour atomique de plusieurs blocs (max 50)
-  en UNE seule révision — all-or-nothing, compte 1 écriture rate limit
-* Paramètre dry_run (true/1) sur toutes les routes d'écriture
-  (/inject, /uninject, /block-content, /blocks, /blocks/batch-update) :
-  validation complète (CAS, cibles, contenu) sans aucune écriture,
-  sans révision, sans audit, sans consommation du rate limit
-* Versions alignées (header + constante + readme)
+* Batch update_blocks avec dry_run
 
 = 2.3.0 =
-* Ciblage des blocs par ref HWC ({module}-{block_id}) en plus de l'index
-* Ref HWC auto-générée sur les blocs créés via POST /blocks (paramètre module)
-* Positionnement "start" | "end" | "before" | "after" avec anchor_ref/anchor_index
-  sur POST /blocks — erreur explicite anchor_not_found (jamais de fallback silencieux)
-* CAS (compare-and-swap) sur toutes les écritures via expected_hash (md5 du post_content) —
-  conflit => 409 error_conflict, jamais d'écrasement silencieux
-* Rate limiting des écritures : 10/60s par page (429 rate_limited)
-* Journal d'audit : table {prefix}houetor_connect_actions_log (before/after par action)
-* wp_save_post_revision() avant écriture sur /inject et /uninject (filet de sécurité)
-* GET /page-blocks renvoie content_md5 + ref par bloc
-* Versions alignées (header + constante + readme)
-
-= 2.2.0 =
-* Édition bloc par bloc : GET /page-blocks, PATCH /block-content, POST/DELETE /blocks
-* wp_save_post_revision() avant écriture des routes blocs
+* CAS (Change Awareness System)
+* Rate limit 10/60s
+* Journal d'audit complet
 
 = 2.1.0 =
-* Ajout de l\'API REST pour la communication bidirectionnelle
-* Amélioration de l\'interface d\'administration
-* Ajout des tokens de sécurité
-* Support des formations pour le profil Coach
+* Version initiale : basic CRUD, Gutenberg integration
 
-= 2.0.0 =
-* Refonte complète du plugin
-* Nouveau système de profils HWT
-* Injection de contenu configurable
-* Design responsive
+== Support ==
 
-= 1.0.0 =
-* Version initiale
-* Affichage des annonces pour les profils ONG
+Questions ou bugs ? Contacte support@houetor.com
+Forum communauté : Facebook "HOUETOR Utilisateurs"
+Documentation : https://houetor.com/aide
+
+== Liens ==
+
+Site : https://houetor.com
+Tableau de bord : https://houetor.com/espace
+En savoir plus : https://houetor.com/commencer
