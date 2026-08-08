@@ -16,6 +16,22 @@
 | 17 | README marché (agent) | 🤖 | ⬜ |
 | 18 | Politique licence selfhare (décisions) | 👤 | ⬜ |
 
+
+---
+
+## #20 - Aligner les inserts checkout FedaPay sur le schema orders reel (FIL OUVERT, Exp 040 ter)
+
+**Contexte** : decouvert pendant la validation paiement (Exp 040 ter, 2026-08-08). Les routes `app/api/hare/checkout/create-fedapay-session/route.ts` et `app/api/selfhare/checkout/create-fedapay-session/route.ts` inserent sur `orders` les colonnes `plan_type`, `plan_name`, `billing`, `customer_email` qui **n'existent PAS** dans la vraie table (verifie par schema cache Supabase).
+
+**Schema reel de `orders`** : `id, client_id, offer_type, status, amount, currency, payment_provider, transaction_id, description, created_at, updated_at, full_name, email, phone, company, sector, domain, site_type, site_colors, site_logo, site_pages, site_examples, site_socials, site_content_ready, site_contact_phone, site_contact_email, site_sections, profile_type, access_type, organisation, pays, ville, specific_field, specific_request, studio_status, user_id, next_billing_at, billing_cycle_status, last_renewal_attempt_at, renewal_failure_count, provider_subscription_id`.
+
+**Impact** : le checkout FedaPay reel planterait a l'insert (colonne inconnue -> 400/500). Le webhook lui est OK (il ne touche que `user_id`/`transaction_id`/`status`/`studio_status`/`current_period_end`).
+
+**Correction suggeree** : remplacer les inserts par `{ user_id, offer_type: <plan>, amount, currency, payment_provider: 'fedapay', status: 'pending', transaction_id, email }` (pattern eprouve dans `scripts/test/s29-paiement-e2e-local.mjs` - l'insert de test passe avec ces colonnes). Ne PAS creer les colonnes absentes par migration : le schema reel est la reference (aucun historique de migrations sur ce projet - verifier d'abord ce que les autres routes attendent de `orders`).
+
+**Preuve / verification** : `bun scripts/test/s29-paiement-e2e-local.mjs` (17/17 PASS) - le setup du test insere une order avec les colonnes reelles. Le webhook met bien a jour cette order (status active + billing_cycle_status active + current_period_end +30j).
+
+---
 ---
 
 ## #2 — Merge `mcp-block-crud-2.7.0` → `main` (repo houetor)
