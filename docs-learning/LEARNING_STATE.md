@@ -545,3 +545,15 @@ Relance du serveur WP lab si tombé : `wsl -u root -e bash -c "systemctl restart
 | **Reste (manuel)** | Click-through /onboarding avec compte authentifie ; envoi Resend reel (RESEND_API_KEY) ; visuel /affilies navigateur ; commit onglets/emails/affiliation + push main (a la demande) |
 
 **Pour reprendre** : main houetor = `d3fc419`, commit `8902170` en attente de push + chantier Section 29 (onglets/emails/affiliation) non committe. Lab : commit Exp 040 sur `opencode-learning`. Fils ouverts inchanges : merge `mcp-block-crud-2.7.0` -> main, artefacts Fix Day #10, lint global (62), README marche (#17/#18), restauration "Insights & Resources" Blog #13.
+
+## SESSION 2026-08-08 (suite) - SECTION 29, Domino 4 : centre d'aide /aide (Exp 040 bis, docs EXPERIMENTS_LOG)
+
+| Sujet | Etat |
+|---|---|
+| **Donnees FAQ** | **OK**. pp/aide/faqs.ts : 53 FAQ utilisateur nettoyees (emojis retires) - Setup 8, Paiement 10, Agent IA 9, WordPress 8, Erreurs 10, Support 4, Donnees 4 ; type FaqCategory exporte ; tags + updatedAt par item |
+| **Page /aide** | **OK**. pp/aide/page.tsx (client, theme Nuit Foret, nav/footer autonomes) : search temps reel (accents normalises, multi-mots, compteur), chips categories avec compteurs, accordeons (Q/A/tags/date, un seul ouvert), etat vide avec CTA mailto, section "Mon probleme n'est pas liste" -> form valide -> mailto pre-rempli, **zero API** |
+| **Validations** | **OK**. tsc 0 ; eslint 0 (2 warnings img = convention) ; 
+ext build 20.0s - /aide statique |
+| **Reste (manuel)** | Visuel navigateur /aide (accordions, search, ouverture mailto) ; commit chantier Section 29 complet (onglets/emails/affiliation//aide) + push main (a la demande) ; click-through /onboarding authentifie ; envoi Resend reel |
+
+**Pour reprendre** : main houetor = d3fc419, commits Section 29 NON pousses (onboarding 8902170 + chantier onglets/emails/affiliation//aide) a committer. Lab : commit Exp 040 bis sur opencode-learning. Fils ouverts inchanges : merge mcp-block-crud-2.7.0 -> main, artefacts Fix Day #10, lint global (62), README marche (#17/#18), restauration "Insights & Resources" Blog #13.

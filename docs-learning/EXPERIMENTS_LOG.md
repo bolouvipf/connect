@@ -1051,3 +1051,22 @@ MD5 selfhare: D32DD3EB8B4F081F4F0C32695AD8156D
 **5. Validations** : tsc --noEmit 0 erreur ; eslint 0 erreur sur les fichiers du chantier (2 warnings img = convention landing existante) ; `next build` ✓ Compiled successfully 20.5s - `/affilies` ○ statique, `/api/affilies` ƒ, `/espace` ƒ.
 
 **Pour reprendre** : main houetor = `d3fc419` ; commits Section 29 NON pousses : `8902170` (onboarding) + chantier en cours (onglets, emails, affiliation) a committer. Tests manuels restants : click-through /onboarding avec compte authentifie, envoi Resend reel (RESEND_API_KEY), visuel /affilies navigateur. Fils ouverts inchanges : merge `mcp-block-crud-2.7.0` -> main, artefacts Fix Day #10, lint global (62), README marche (#17/#18), restauration "Insights & Resources" Blog #13.
+
+## Exp 040 bis - SECTION 29, Domino 4 : centre d'aide /aide (08/08/2026)
+
+**Contexte** : suite de la Section 29 (repo houetor, main = d3fc419). Domino 4 = page /aide (FAQ + support) demandee par l'utilisateur, **avec zero dependance API** (pas de table Supabase ni route backend : stockage local + mailto pre-rempli).
+
+**1. Donnees pp/aide/faqs.ts** : **53 FAQ** integrees telles quelles depuis la liste utilisateur (nettoyage : emojis retires) - Setup 8, Paiement 10, Agent IA 9, WordPress 8, Erreurs 10, Support 4, Donnees 4. Chaque item : {id, question, reponse, categorie, tags[], updatedAt} (ISO). Nota : la demande disait 5 categories mais la liste utilisateur en compte 7 (Setup/Paiement/Agent IA/WordPress/Erreurs + Support/Donnees) -> suivi de la liste, regroupement possible a la demande. Type FaqCategory exporte depuis faqs.ts.
+
+**2. Page pp/aide/page.tsx** (client, theme Nuit Foret INK/CARD/JADE comme /affilies, nav + footer autonomes) :
+- **Search temps reel** : filtre question + reponse + tags + categorie ; normalisation accents (NFD + strip \u0300-\u036f) -> "hebergement" matche "hebergement" ; multi-mots (tous requis) ; compteur de resultats.
+- **Chips categories** avec compteurs derives (Toutes 53 + 7 categories).
+- **Accordeons FAQ** : Q (bouton, aria-expanded) + A + badges #tags + "Mis a jour le <date fr-FR>" ; un seul ouvert a la fois (state open).
+- **Etat vide** : "Aucun resultat pour ..." + CTA mailto pre-rempli avec la requete.
+- **Section "Mon probleme n'est pas liste"** : form nom/email/message (validation locale regex email) -> mailto:support@houetor.com?subject=&body= pre-rempli, aucun envoi reseau.
+
+**3. Validations** : tsc --noEmit 0 erreur ; eslint 0 erreur (2 warnings 
+o-img-element = convention landing existante) ; 
+ext build Compiled successfully 20.0s - /aide statique (o).
+
+**Pour reprendre** : main houetor = d3fc419 ; commits Section 29 NON pousses : 8902170 (onboarding) + chantier (onglets espace, emails, affiliation, /aide) a committer ensemble. Reste manuel : visuel navigateur /aide (accordions, search, mailto). Fils ouverts inchanges : merge mcp-block-crud-2.7.0 -> main, artefacts Fix Day #10, lint global (62), README marche (#17/#18), restauration "Insights & Resources" Blog #13.
