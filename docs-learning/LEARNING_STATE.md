@@ -569,3 +569,15 @@ ext build 20.0s - /aide statique |
 | **Cle FedaPay** | .env.local : FEDAPAY_SECRET_KEY **sk_live_** + FEDAPAY_WEBHOOK_SECRET wh_live_ (jamais commites, .gitignore OK). Classe de test sandbox impossible sans cle sk_sandbox_ (le code vise sandbox-api) |
 
 **Pour reprendre** : main houetor = d3fc419 + commits Section 29 NON pousses (8902170, 422758e, 21ed9f4, d6ca692). Reste : cle sandbox pour transaction reelle 1k FCFA (etape 1 du brief), alignement orders checkout (fil ouvert), RESEND_API_KEY pour emails, visuels navigateur (aide/affilies/onboarding). Lab : commit Exp 040 ter sur opencode-learning.
+
+## SESSION 2026-08-08 (suite 3) - SECTION 29, Domino 3 : assets + readme.txt soumission WordPress.org (Exp 041, docs EXPERIMENTS_LOG)
+
+| Sujet | Etat |
+|---|---|
+| **Brand kit** | **OK**. `public/HOUETOR_BrandKit_2026.pdf` extrait par pymupdf (5 pages) : palette #0D1F1A/#1A3D2E/#2ECC8A/#F0EDE6/#7A9E8E + produits #FB923C/#4F7EFF, logos ellipse horizontale, Space Grotesk Bold + DM Sans, ton Solide/Ancre/Ambitieux/Direct. Modele principal + visionneur sans support image -> traitement script |
+| **Canva (abandonne)** | 5 jobs generate-design (logo/banner/screenshots) -> 4 candidats chacun, **tous rejetes par l'utilisateur** ("tous sont nulles") -> visuels finaux fournis par l'utilisateur en PNG |
+| **5 assets** | **OK**. `houetor-connect/assets/` : icon-128x128 (5KB), banner-772x250 (97KB, crop ratio + quantification 128 couleurs), screenshot-1/2/3 680x500 (68/82/60KB). **Total 252.9 KB < 1MB**, chacun < 200KB |
+| **readme.txt** | **OK**. Structure stricte WP.org, UTF-8 sans BOM : Contributors BOLOUVI Pierre Florent + houetor, Tags automation/ai/content/blocks/gutenberg, 5.9/6.6/PHP7.4, Stable tag 2.9.0, GPL-2.0-or-later ; Description + Fonctionnalites + Cas d'usage + Comment ca fonctionne + Prerequis + Plan payant optionnel (sans lien de paiement) + Installation + FAQ 5 + Changelog 2.9.0->2.1.0 + Support + Liens. Tagline 62 chars < 160. Remplace l'ancien readme 2.8.0 |
+| **Miroir lab** | **OK**. `houetor-connect/` lab sync avec main houetor (2.8.0 -> 2.9.0 : houetor-connect.php, class-block-editor.php, 14 fichiers tests + 5 PNG + readme.txt) |
+
+**Pour reprendre** : plugin houetor-connect pret pour submission (readme.txt + 5 assets). Suite : branche `wordpress-org-submit` locale dans le lab `bolouvipf/connect` (commit assets + readme, sans merge ni push), validation utilisateur avant submission. Fils ouverts inchanges : merge mcp-block-crud-2.7.0 -> main, artefacts Fix Day #10, lint global (62), README marche (#17/#18), Blog #13, checkout orders FedaPay.

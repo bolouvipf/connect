@@ -11,6 +11,20 @@ class HWC_Block_Editor {
             return ['success' => false, 'message' => 'Page introuvable.', 'blocks' => [], 'count' => 0];
         }
 
+        $elementor_data = get_post_meta($page_id, '_elementor_data', true);
+        if (!empty($elementor_data)) {
+            return [
+                'success' => false,
+                'error'   => 'elementor_not_supported',
+                'message' => 'Cette page utilise Elementor. '
+                         . 'HOUETOR ne peut pas modifier les pages Elementor '
+                         . 'pour le moment. Modifiez cette page directement '
+                         . 'dans l\'éditeur Elementor (Tableau de bord WordPress '
+                         . '→ Pages → Modifier avec Elementor).',
+                'builder' => 'elementor',
+            ];
+        }
+
         $content = $post->post_content;
         if (empty(trim($content))) {
             return ['success' => false, 'message' => 'Le contenu de cette page est vide ou utilise un template. Les blocs ne sont pas stockés directement dans le champ contenu.', 'blocks' => [], 'count' => 0];
@@ -369,6 +383,20 @@ class HWC_Block_Editor {
             return ['success' => false, 'message' => 'Page introuvable.'];
         }
 
+        $elementor_data = get_post_meta($page_id, '_elementor_data', true);
+        if (!empty($elementor_data)) {
+            return [
+                'success' => false,
+                'error'   => 'elementor_not_supported',
+                'message' => 'Cette page utilise Elementor. '
+                         . 'HOUETOR ne peut pas modifier les pages Elementor '
+                         . 'pour le moment. Modifiez cette page directement '
+                         . 'dans l\'éditeur Elementor (Tableau de bord WordPress '
+                         . '→ Pages → Modifier avec Elementor).',
+                'builder' => 'elementor',
+            ];
+        }
+
         if (!self::cas_check($post, $expected_hash)) {
             return ['success' => false, 'error' => 'conflict', 'message' => 'Conflit de concurrence : le contenu de la page a changé depuis la lecture. Relancez get_page_blocks et repassez le expected_hash à jour.'];
         }
@@ -444,6 +472,20 @@ class HWC_Block_Editor {
         $post = get_post($page_id);
         if (!$post) {
             return ['success' => false, 'message' => 'Page introuvable.'];
+        }
+
+        $elementor_data = get_post_meta($page_id, '_elementor_data', true);
+        if (!empty($elementor_data)) {
+            return [
+                'success' => false,
+                'error'   => 'elementor_not_supported',
+                'message' => 'Cette page utilise Elementor. '
+                         . 'HOUETOR ne peut pas modifier les pages Elementor '
+                         . 'pour le moment. Modifiez cette page directement '
+                         . 'dans l\'éditeur Elementor (Tableau de bord WordPress '
+                         . '→ Pages → Modifier avec Elementor).',
+                'builder' => 'elementor',
+            ];
         }
 
         if (!self::cas_check($post, $expected_hash)) {
