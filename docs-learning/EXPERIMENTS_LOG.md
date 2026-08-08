@@ -1108,3 +1108,11 @@ ext start -p 3111, donnees test prefixees E2E-<ts> puis NETTOYEES, preuve out-s2
 **3. Checklist verification** : UTF-8 OK sans BOM ; 5 PNG presents ; tagline 62 < 160 ; aucun lien de paiement dans la description (FCFA seulement dans Plan payant + FAQ) ; tags pertinents ; GPL-2.0-or-later conforme.
 
 **Pour reprendre** : repo houetor main avec 4 commits Section 29 NON pousses + plugin houetor-connect pret pour submission (readme.txt + assets). Suite : branche `wordpress-org-submit` a creer localement dans le lab `bolouvipf/connect` (assets + readme), validation utilisateur avant tout push. Fils ouverts inchanges : merge mcp-block-crud-2.7.0 -> main, artefacts Fix Day #10, lint global (62), README marche (#17/#18), Blog #13.
+
+## Exp 041 bis - CLOTURE SESSION, SECTION 29 suspendue (08/08/2026)
+
+**Actions de cloture** (suite a la demande utilisateur "pousse tout et je verifie dans le repos du lab" puis "garde tout le contexte dans le lab car je vais arreter la section d'abord") :
+- Push `opencode-learning` -> `64ea2cd` (sync miroir 2.9.0 + docs Exp 041).
+- Creation + push branche **`wordpress-org-submit`** -> `8ce7800` `feat: assets + readme.txt pour wordpress.org submission` (5 PNG + readme.txt ; branche distante creee, PR : https://github.com/bolouvipf/connect/pull/new/wordpress-org-submit). **Non mergee dans main**.
+- Verification sync : `houetor-connect/` lab vs repo houetor **37/37 fichiers identiques** (hashes).
+- Contexte complet conserve au lab : EXPERIMENTS_LOG (Exp 001-041), LEARNING_STATE, USER_ACTIONS_GUIDE (#20), miroirs connect/selfhare/mcp. Section 29 en pause, reprise documentee (REPRISE SECTION 29 dans LEARNING_STATE).

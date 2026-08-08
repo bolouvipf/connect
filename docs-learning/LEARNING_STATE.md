@@ -581,3 +581,13 @@ ext build 20.0s - /aide statique |
 | **Miroir lab** | **OK**. `houetor-connect/` lab sync avec main houetor (2.8.0 -> 2.9.0 : houetor-connect.php, class-block-editor.php, 14 fichiers tests + 5 PNG + readme.txt) |
 
 **Pour reprendre** : plugin houetor-connect pret pour submission (readme.txt + 5 assets). Suite : branche `wordpress-org-submit` locale dans le lab `bolouvipf/connect` (commit assets + readme, sans merge ni push), validation utilisateur avant submission. Fils ouverts inchanges : merge mcp-block-crud-2.7.0 -> main, artefacts Fix Day #10, lint global (62), README marche (#17/#18), Blog #13, checkout orders FedaPay.
+
+## CLOTURE SESSION 2026-08-08 - SECTION 29 suspendue par l'utilisateur ("je vais arreter la section d'abord")
+
+| Sujet | Etat |
+|---|---|
+| **Lab pousse** | **OK**. `opencode-learning` -> `64ea2cd` pousse (Exp 041 : sync miroir 2.9.0 + docs) ; **`wordpress-org-submit` -> `8ce7800` poussee** (feat: assets + readme.txt pour wordpress.org submission, branche distante creee, PR possible https://github.com/bolouvipf/connect/pull/new/wordpress-org-submit) - **pas de merge dans main** (wordpress-org-submit n'a PAS ete mergee) |
+| **Sync miroir** | **OK**. `houetor-connect/` lab = repo houetor **37/37 fichiers identiques** (hashes verifies) |
+| **Contexte lab** | Complet : EXPERIMENTS_LOG (Exp 001-041), LEARNING_STATE (toutes sessions), USER_ACTIONS_GUIDE (#20 checkout orders), docs miroirs connect/selfhare/mcp. Tout le contexte Section 29 conserve au lab |
+
+**REPRISE SECTION 29 (quand l'utilisateur revient)** : repo houetor main = d3fc419 + 4 commits Section 29 NON pousses dans houetor (8902170 onboarding, 422758e onglets/emails/affiliation/aide, 21ed9f4 aide sidebar, d6ca692 test paiement). Validation FedaPay 17/17 faite (2 migrations appliquees sur base). Reste cote houetor : cle sandbox FedaPay (etape 1 brief), alignement orders checkout (fil ouvert #20), RESEND_API_KEY emails, visuels navigateur (aide/affilies/onboarding). Cote lab : wordpress-org-submit prete pour soumission WP.org, validation utilisateur en attente. Fils ouverts inchanges : merge mcp-block-crud-2.7.0 -> main, artefacts Fix Day #10, lint global (62), README marche (#17/#18), Blog #13.
