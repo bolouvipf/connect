@@ -530,3 +530,18 @@ Relance du serveur WP lab si tombé : `wsl -u root -e bash -c "systemctl restart
 | **⚠️ Anomalie structurale** | `houetor-connect/` n'avait JAMAIS été suivi par git dans le repo houetor (git ls-files = 0) → désormais suivi (plugin complet inclus dans le commit pour un zip valide) |
 
 **Pour reprendre** : main houetor = **`d3fc419`** (Elementor Option C en prod : connect 2.9.0, selfhare 1.0.4, zips à jour, `houetor-connect/` suivi par git). Lab : commit Exp 039 sur `opencode-learning`. Fils ouverts inchangés : merge `mcp-block-crud-2.7.0` → main, artefacts Fix Day #10, lint global (62), README marché (#17/#18), restauration « Insights & Resources » Blog #13. **FIL FERMÉ : décision Elementor A/B/C (Exp 035) → Option C livrée.**
+
+## SESSION 2026-08-08 - SECTION 29 : onboarding, onglets espace, emails Resend, canal affiliation (Exp 040, docs EXPERIMENTS_LOG)
+
+| Sujet | Etat |
+|---|---|
+| **Domino 1 - /onboarding** | ✔. Migration `20260808_onboarding.sql` (users += onboarding_step, setup_completed, trial_expires_at, onboarding_choice) ; API `app/api/onboarding/route.ts` GET/POST valide ; page 5 etapes mobile-first (profil -> domaine -> essai 7j -> premier contenu -> activation hare/selfhare) ; `/connexion` redirige si setup_completed=false ; test s29-onboarding **20 PASS / 0 FAIL** |
+| **Commit Domino 1** | ✔. `8902170` `feat(section29): onboarding 5 etapes...` - **NON pousse** (decision utilisateur "commit et garde pour le moment", main = `d3fc419`) |
+| **Domino 2 - onglets espace** | ✔. `app/espace/components/EspaceTabs.tsx` integre dans `/espace` (remplace StatsGrid + bottom grid) : Stats (COUNT ce mois + dernier bloc + placeholder GA4), Facturation (billing_cycle_status, next_billing_at, 5 derniers paiements), Parametres (dropdown profil -> update, options SelfHare si onboarding_choice=selfhare) |
+| **Icônes SVG** | ✔. `app/espace/components/icons.tsx` (Stats/Calendar/Settings/Plus/Users, stroke lucide) - **emojis interdits** (demande utilisateur) |
+| **Emails Resend** | ✔. `emails/bienvenue.tsx` (sujet "Bienvenue sur HOUETOR {{profil}}", CTA /onboarding/2, exporte BRAND), `emails/premier-contenu.tsx` ("Ton agent IA t'attend", lien /espace), `emails/upgrade-paiement.tsx` ("Passe a la formule payante", grille 5 formules, CTA /onboarding/5) - sans @react-email/components |
+| **Canal affiliation** | ✔. `app/affilies/page.tsx` (hero "Gagne 20% par client", paliers 20/25/30%, social proof 3 devs/2 semaines + 25k FCFA/mois, form inscription) ; `app/api/affilies/route.ts` + `envoyerEmailAffiliation` (confirmation lead + notif admin) ; kit `public/kit-affiliation/` (email-pitch 3 variantes, banniere-728x90.svg, posts-sociaux 4) |
+| **Validations** | ✔. tsc 0 erreur ; eslint 0 erreur (2 warnings img = convention) ; `next build` ✓ 20.5s (/affilies ○, /api/affilies ƒ, /espace ƒ) |
+| **Reste (manuel)** | Click-through /onboarding avec compte authentifie ; envoi Resend reel (RESEND_API_KEY) ; visuel /affilies navigateur ; commit onglets/emails/affiliation + push main (a la demande) |
+
+**Pour reprendre** : main houetor = `d3fc419`, commit `8902170` en attente de push + chantier Section 29 (onglets/emails/affiliation) non committe. Lab : commit Exp 040 sur `opencode-learning`. Fils ouverts inchanges : merge `mcp-block-crud-2.7.0` -> main, artefacts Fix Day #10, lint global (62), README marche (#17/#18), restauration "Insights & Resources" Blog #13.

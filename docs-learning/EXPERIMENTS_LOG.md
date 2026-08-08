@@ -1016,3 +1016,38 @@ MD5 selfhare: D32DD3EB8B4F081F4F0C32695AD8156D
 **6. Commit + merge** : branche `section28/elementor-detection` → commit `0cafaa7` (39 fichiers, +6604/−3, 3 modifs réelles + intégration du plugin connect) → push OK. **Merge → main explicite utilisateur (Règle 28 levée)** : `d3fc419` `merge(section28): Elementor Option C — detection explicite, connect 2.9.0, selfhare 1.0.4 — 0cafaa7` (ort, sans conflit, 39 fichiers +6604/−3), push `36f2108..d3fc419 main -> main`, branche distante `- [deleted] section28/elementor-detection` (seule la locale résiduelle subsiste).
 
 **Pour reprendre** : côté houetor — main à `d3fc419` (Elementor Option C en prod : connect 2.9.0, selfhare 1.0.4, zips à jour, **houetor-connect/ désormais suivi par git**). **Fil fermé : décision Elementor A/B/C (Exp 035) → Option C livrée** (Option B différée, hors périmètre). Fils ouverts inchangés : merge `mcp-block-crud-2.7.0` → main, artefacts Fix Day #10, lint global (62), README marché (#17/#18), restauration « Insights & Resources » Blog #13. Lab — commit Exp 039 sur `opencode-learning`.
+
+## Exp 040 - SECTION 29 : onboarding, onglets espace, emails Resend, canal affiliation (08/08/2026)
+
+**Contexte** : Section 29 = chantier grand compte client sur le repo houetor. Domino 1 (J0-J21) onboarding livré ; Domino 2 (J21-J35) onglets espace ; support emails Resend ; canal affiliation (J35-J90) page /affilies. Main houetor = `d3fc419` (Elementor Option C). Aucun push de la Section 29 (decision utilisateur "commit et garde pour le moment").
+
+**1. Domino 1 - flow /onboarding 5 etapes (J0-J21)** :
+- Migration `supabase/migrations/20260808_onboarding.sql` : `users` += `onboarding_step int default 0`, `setup_completed boolean default false`, `trial_expires_at timestamptz`, `onboarding_choice text check (hare|selfhare)`.
+- API `app/api/onboarding/route.ts` : GET etat complet, POST valide (step 0-5, profils, URL http(s), date ISO, choix hare/selfhare).
+- Page `app/onboarding/page.tsx` : 5 etapes mobile-first (profil -> domaine -> essai 7j -> premier contenu via /agent avec fallback formulaire -> activation hare/selfhare), codeHWT `HWT-${map[profile]}-${userId}`, theme Nuit Foret (INK #0D1F1A, CARD #162B24, JADE #2ECC8A).
+- `/connexion` : redirection vers /onboarding si setup_completed=false + 2 erreurs lint preexistantes corrigees.
+- Test `scripts/test/s29-onboarding.test.mjs` : **20 PASS / 0 FAIL** (preuve brute out-s29-onboarding.txt NON commitee, pattern repo). tsc 0, eslint 0, build OK.
+- Commit `8902170` `feat(section29): onboarding 5 etapes - profil, domaine, essai 7j, premier contenu, activation hare/selfhare, stockage users, test click-through 20/20` - **NON pousse**.
+
+**2. Domino 2 - 3 onglets espace (J21-J35)** :
+- `app/espace/components/EspaceTabs.tsx` + integration dans `/espace` (remplace StatsGrid + bottom grid ; StatsGrid/SubscriptionPanel/SupportPanel supprimes).
+- **Stats** : COUNT(*) du mois (gte created_at >= 1er du mois) sur la table du profil (annonces/produits/formations/cm_posts/campagnes), dernier bloc cree (titre + date humanisee), carte placeholder "Visites - GA4".
+- **Facturation** : billing_cycle_status (badge Actif/En attente/Expire/Annule), next_billing_at humanise, historique **5** paiements (orders neq transaction_id null, limit 5, date/montant/statut).
+- **Parametres** : dropdown profil (5 options) -> update users.profile_type ; si onboarding_choice == 'selfhare' -> "Ajouter un site" (/espace/site) + "Inviter un collaborateur" (disabled, bientot).
+- Icônes SVG legeres `app/espace/components/icons.tsx` (Stats/Calendar/Settings/Plus/Users, stroke lucide) - **demande utilisateur : aucun emoji**.
+
+**3. Emails Resend (templates JSX, livrables Domino 1)** :
+- `emails/bienvenue.tsx` : EmailBienvenue + SUJET "Bienvenue sur HOUETOR {{profil}}", CTA /onboarding/2, exporte BRAND (partage).
+- `emails/premier-contenu.tsx` : EmailPremierContenu + sujet "Ton agent IA t'attend", prop premierContenu, CTA /espace.
+- `emails/upgrade-paiement.tsx` : EmailUpgradePaiement + sujet "Passe a la formule payante", grille tarifaire 5 formules (20k-50k FCFA/mois, formule active surlignee jade), CTA /onboarding/5.
+- Sans @react-email/components (resend v6 `emails.send({ react })` suffit), aucune dependance ajoutee. Rendu visuel reel Resend = manuel.
+
+**4. Canal affiliation J35-J90** :
+- `app/affilies/page.tsx` (landing sombre autonome, pattern /commencer) : hero "Gagne **20%** par client" + CTA "Devenir affilié" ; grille 3 paliers (1-4 clients 20% / 5-14 25% / 15+ 30%, palier max surligne) ; social proof ("3 devs en 2 semaines" mock dashboard CSS + "Gagne 25k FCFA/mois" tableau de calcul) ; form inscription (nom + email + whatsapp) ; section kit marketing 3 blocs telechargeables.
+- `app/api/affilies/route.ts` : validation (email regex, nom requis) -> envoyerEmailAffiliation.
+- `lib/email.ts` : `envoyerEmailAffiliation` - 2 envois Resend : confirmation au lead (taux de depart + paliers + liens kit) + notification admin@houetor.com (nom/email/whatsapp).
+- Kit `public/kit-affiliation/` : `email-pitch.txt` (3 variantes : email froid, LinkedIn DM, WhatsApp), `banniere-728x90.svg` (728x90 Brand Kit, importable Canva), `posts-sociaux.txt` (4 posts : 2 LinkedIn + 2 WhatsApp).
+
+**5. Validations** : tsc --noEmit 0 erreur ; eslint 0 erreur sur les fichiers du chantier (2 warnings img = convention landing existante) ; `next build` ✓ Compiled successfully 20.5s - `/affilies` ○ statique, `/api/affilies` ƒ, `/espace` ƒ.
+
+**Pour reprendre** : main houetor = `d3fc419` ; commits Section 29 NON pousses : `8902170` (onboarding) + chantier en cours (onglets, emails, affiliation) a committer. Tests manuels restants : click-through /onboarding avec compte authentifie, envoi Resend reel (RESEND_API_KEY), visuel /affilies navigateur. Fils ouverts inchanges : merge `mcp-block-crud-2.7.0` -> main, artefacts Fix Day #10, lint global (62), README marche (#17/#18), restauration "Insights & Resources" Blog #13.
